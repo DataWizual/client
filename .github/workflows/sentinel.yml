@@ -1,0 +1,58 @@
+name: Sentinel Security Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Sentinel
+        env:
+          # Мы используем переменную из Secrets, а не пишем токен текстом
+          INSTALL_TOKEN: ${{ secrets.SENTINEL_INSTALL_TOKEN }}
+        run: |
+          python -m pip install --upgrade pip
+          # Используем переменную ${{ secrets.SENTINEL_INSTALL_TOKEN }}
+          pip install git+https://x-access-token:${{ secrets.SENTINEL_INSTALL_TOKEN }}@github.com/DataWizual/sentinel-core.git@main
+      
+      - name: Execute Security Scan
+        id: scan_step
+        env:
+          SENTINEL_AUTHORIZED_REPO: ${{ github.repository }}
+        # Флаг --report теперь создаст файл в корне благодаря нашим правкам в Python
+        run: sentinel scan . --report
+        continue-on-error: true
+
+      - name: Upload Security Report
+        # Если скан нашел ошибки, загружаем отчет
+        if: steps.scan_step.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-security-report
+          path: sentinel_report.html
+          retention-days: 7
+
+      - name: Report Violations
+        if: steps.scan_step.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          # Убедись, что этот секрет тоже добавлен в Settings репозитория
+          github-token: ${{ secrets.SENTINEL_ALERT_TOKEN }} 
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Sentinel: Security Violation Detected',
+              body: 'Sentinel found policy violations. A detailed security report has been uploaded to the Action artifacts.'
+            })
+
+      - name: Terminate on Failure
+        if: steps.scan_step.outcome == 'failure'
+        run: exit 1

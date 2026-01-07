@@ -1,0 +1,4 @@
+exclude:
+- venv
+- .git
+fail_on: BLOCK
