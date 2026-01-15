@@ -1,0 +1,12 @@
+admin_repo: DataWizual/sentinel-cicd
+ignore:
+- venv/*
+- .git/*
+- node_modules/*
+- sentinel/rules/secrets/*
+- sentinel_report.html
+overrides: []
+severity:
+  INFRA-001: BLOCK
+  SEC-001: BLOCK
+  SUPPLY-001: BLOCK
