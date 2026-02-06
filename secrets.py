@@ -1,0 +1,1 @@
+aws_key = 'AKIAIMNO789012345678'

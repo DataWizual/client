@@ -1,0 +1,28 @@
+name: Sentinel Security Gate
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Install Sentinel
+        env:
+          INSTALL_TOKEN: ${{ secrets.SENTINEL_INSTALL_TOKEN }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install git+https://x-access-token:${INSTALL_TOKEN}@github.com/DataWizual/sentinel-core-v2_1.git@main
+      - name: Execute Security Scan
+        id: scan_step
+        env:
+          SENTINEL_ADMIN_REPO: 'DataWizual/sentinel-core-v2_1'
+          SENTINEL_ALERT_TOKEN: ${{ secrets.SENTINEL_ALERT_TOKEN }}
+        run: sentinel scan . --report
+        continue-on-error: true
+      - name: Terminate on Failure
+        if: steps.scan_step.outcome == 'failure'
+        run: exit 1

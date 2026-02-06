@@ -1,0 +1,10 @@
+admin_repo: DataWizual/sentinel-core-v2_1
+ignore:
+- venv/*
+- .git/*
+- node_modules/*
+- sentinel_report.html
+severity:
+  INFRA-001: BLOCK
+  SEC-001: BLOCK
+  SUPPLY-001: BLOCK
