@@ -8,10 +8,22 @@ scanner:
   exclude_patterns:
     - "*.min.js"
     - "*.lock"
+    - "*.pyc"
+    - "*.pyo"
+    - "*.whl"
+    - "*.so"
+    - "*.egg-info/*"
     - "node_modules/*"
     - "venv/*"
+    - ".venv/*"
+    - "env/*"
     - ".git/*"
     - "__pycache__/*"
+    - "dist/*"
+    - "build/*"
+    - "reports/*"
+    - "*.pack"
+    - "site-packages/*"
 
 detectors:
   bandit_detector: true
@@ -22,15 +34,15 @@ detectors:
   iac_scanner: true
   cicd_analyzer: true
   sast_scanner: true
-  slither_detector: false   # Web3 только по требованию
-  license_scanner: false    # Не нужен в sentinel режиме
+  slither_detector: false
+  license_scanner: false
 
 ai:
   enabled: true
   provider: "google"
   model: "gemini-2.5-flash"
-  max_findings_per_scan: 15  # Ограничиваем для скорости при коммите
-  min_severity_for_ai: "HIGH" # В sentinel режиме только HIGH/CRITICAL
+  max_findings_per_scan: 15
+  min_severity_for_ai: "HIGH"
   batch_size: 3
   sleep_between_batches: 20
 
