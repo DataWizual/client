@@ -42,7 +42,7 @@ ai:
   provider: "google"
   model: "gemini-2.5-flash"
   max_findings_per_scan: 15
-  min_severity_for_ai: "LOW"
+  min_severity_for_ai: "HIGH"
   batch_size: 3
   sleep_between_batches: 20
 

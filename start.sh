@@ -179,6 +179,7 @@ detectors:
 
 ai:
   enabled: true
+  mode: "external"
   provider: "google"
   model: "gemini-2.5-flash"
   max_findings_per_scan: 15
