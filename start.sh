@@ -106,7 +106,15 @@ fi
 # =================================================================
 echo ""
 info "Detecting Machine ID for license binding..."
-MACHINE_ID=$("$SENTINEL_BIN" --id 2>/dev/null || echo "UNKNOWN")
+MACHINE_ID=$(python3 -c "
+import os
+os.environ.setdefault('AUDITOR_LICENSE_SALT', 'placeholder')
+try:
+    from auditor.security.guard import AuditorGuard
+    print(AuditorGuard().get_machine_id())
+except Exception:
+    print('UNKNOWN')
+" 2>/dev/null || echo "UNKNOWN")
 echo ""
 echo -e "${BOLD}  Your Machine ID: ${YELLOW}${MACHINE_ID}${NC}"
 echo ""
