@@ -114,11 +114,19 @@ class SentinelEngine:
             from sentinel.bridge import AuditorBridge
             # Загружаем audit-config.yml для AuditorRunner
             audit_cfg = {}
-            audit_cfg_path = Path(__file__).parent.parent / "audit-config.yml"
-            if audit_cfg_path.exists():
-                import yaml as _yaml
-                with open(audit_cfg_path) as f:
-                    audit_cfg = _yaml.safe_load(f) or {}
+            # Ищем audit-config.yml в рабочей папке клиента (cwd)
+            # и как fallback — рядом с пакетом
+            audit_cfg_candidates = [
+                Path.cwd() / "audit-config.yml",
+                Path(__file__).parent.parent / "audit-config.yml",
+            ]
+            for audit_cfg_path in audit_cfg_candidates:
+                if audit_cfg_path.exists():
+                    import yaml as _yaml
+                    with open(audit_cfg_path) as f:
+                        audit_cfg = _yaml.safe_load(f) or {}
+                    logger.info(f"Bridge: Loaded audit-config from {audit_cfg_path}")
+                    break
 
             license_key = (
                 os.getenv("SENTINEL_LICENSE_KEY") or
