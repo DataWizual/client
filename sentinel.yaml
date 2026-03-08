@@ -1,0 +1,19 @@
+admin_repo: $SENTINEL_ADMIN_REPO
+
+ignore:
+  - venv/*
+  - .git/*
+  - node_modules/*
+  # FIX: Убран sentinel/rules/secrets/* — он блокировал сканирование самого детектора секретов
+  - sentinel_report.html
+  - reports/*
+
+overrides: []
+
+severity:
+  SEC-001:        BLOCK   # Hardcoded secrets — всегда блокируем
+  SUPPLY-001:     BLOCK   # Docker :latest — всегда блокируем
+  INFRA-001:      BLOCK   # Terraform SSH/RDP открытые порты — всегда блокируем
+  INFRA-K8S-001:  WARN    # K8s best practices — предупреждение, не блок
+  CICD-001:       WARN    # GitHub Actions SHA pinning — предупреждение
+  IOT-001:        WARN    # MQTT без TLS — предупреждение

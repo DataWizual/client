@@ -1,0 +1,683 @@
+# AI PROJECT BUNDLE
+# Generated: 2026-03-07T05:01:25.537497 UTC
+# Root: /home/eldorz/projects/sentinel-v2_1/sentinel/rules
+
+===== PROJECT TREE =====
+./
+  __init__.py
+  ai_project_bundle.txt
+  base.py
+  supply/
+    __init__.py
+    docker_integrity.py
+  secrets/
+    __init__.py
+    hardcoded_logic.py
+  infra/
+    __init__.py
+    k8s_security.py
+    terraform_security.py
+  cicd/
+    __init__.py
+    gh_pinning.py
+  iot/
+    __init__.py
+    iot_mqtt_security.py
+
+
+==========================================================================================
+FILE: __init__.py
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: ai_project_bundle.txt
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: base.py
+SIZE: 2679 bytes
+LINES: 78
+ENCODING: utf-8
+SHA256: 82d1ce109611d452b85dc4170b05cb147fabec209d37e56abed99d0a2d7924cd
+==========================================================================================
+
+import os
+import yaml
+import logging
+from abc import ABC, abstractmethod
+from typing import List, Dict
+
+
+logger = logging.getLogger("sentinel.rules")
+
+class BaseRule(ABC):
+    """
+    Base architectural contract for all Sentinel security rules.
+    Every rule must inherit from this class to ensure Engine compatibility
+    and dynamic discovery.
+    """
+
+    def __init__(self):
+        # RULE IDENTITY: Must match the IDs in Engine's IMMUTABLE_RULES (e.g., SEC-001)
+        self.id: str = "GENERIC"
+        self.severity: str = "BLOCK" # RCA: Restored default
+        self.cwe_id: str = "CWE-000"
+        self.description: str = "Security policy description"
+        self.rationale: str = "Standard remediation and mitigation steps"
+
+    @abstractmethod
+    def check(self, artifacts: Dict[str, List[str]]) -> List[str]:
+        """
+        Executes the rule-specific evaluation logic.
+
+        Args:
+            artifacts: Dictionary of categorized files from the ArtifactCollector.
+
+        Returns:
+            A list of strings describing detected violations.
+        """
+        pass
+
+    def read_file(self, file_path: str) -> str:
+        """
+        [Sentinel V2] Strict file reader with failure visibility.
+        """
+        try:
+            if not os.path.exists(file_path):
+                return ""
+            
+            # RCA Fix: Remove errors="ignore". We need to know if the file is binary/corrupted.
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except UnicodeDecodeError:
+            # RCA Fix: Explicit log for binary/unsupported encoding
+            logger.debug(f"Skipping non-UTF8/binary file: {file_path}")
+            return ""
+        except Exception as e:
+            logger.warning(f"Error reading {file_path}: {e}")
+            return ""
+
+    def load_yaml(self, file_path: str) -> dict:
+        """
+        [Sentinel V2] YAML loader with structural integrity check.
+        """
+        content = self.read_file(file_path)
+        if not content:
+            return {}
+        try:
+            return yaml.safe_load(content) or {}
+        except yaml.YAMLError as e:
+            # RCA Fix: Notify about malformed YAML. This is a security risk (shadow config).
+            logger.error(f"❌ Structural Integrity Error in {file_path}: {e}")
+            return {}
+        except Exception as e:
+            logger.warning(f"Unexpected error parsing YAML {file_path}: {e}")
+            return {}
+
+    def __repr__(self):
+        # RCA Fix: Added safe getattr to prevent crashes if severity is missing
+        sev = getattr(self, "severity", "UNKNOWN")
+        return f"<{self.id} [{sev}]>"
+
+
+==========================================================================================
+FILE: supply/__init__.py
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: supply/docker_integrity.py
+SIZE: 3707 bytes
+LINES: 81
+ENCODING: utf-8
+SHA256: 7b69f00e3a1abbf9aab677f9a72ff52c7718caacc77dac7d52f69bf40c0216c3
+==========================================================================================
+
+from typing import List, Dict
+from sentinel.rules.base import BaseRule
+
+
+class DockerIntegrityRule(BaseRule):
+    def __init__(self):
+        super().__init__()
+        self.id = "SUPPLY-001"
+        self.severity = "BLOCK"
+        self.cwe_id = "CWE-494"
+        self.description = "Prohibition of mutable ':latest' image tags."
+        self.rationale = "Using ':latest' leads to unpredictable builds. Use fixed tags or digests."
+
+    def check(self, artifacts: Dict[str, List[str]]) -> List[str]:
+        violations = []
+        dockerfiles = artifacts.get("dockerfiles", [])
+
+        for path in dockerfiles:
+            content = self.read_file(path)
+            if not content:
+                continue
+
+            # RCA Fix: Track aliases to avoid False Positives in multi-stage builds
+            stage_aliases = set()
+            lines = content.splitlines()
+
+            for line_num, line in enumerate(lines, 1):
+                clean_line = line.strip()
+                if not clean_line.upper().startswith("FROM"):
+                    continue
+
+                parts = clean_line.split()
+                image_name = ""
+                
+                # Поиск имени образа (пропуск флагов --platform)
+                for i, part in enumerate(parts):
+                    if part.upper() == "FROM":
+                        for j in range(i + 1, len(parts)):
+                            if not parts[j].startswith("--"):
+                                image_name = parts[j] # Сохраняем регистр для alias
+                                break
+                        break
+
+                if not image_name or image_name.lower() == "scratch":
+                    continue
+
+                # RCA Fix: Handle 'AS' keyword to register aliases
+                # FROM python:3.9 AS builder -> 'builder' is now a valid internal reference
+                upper_parts = [p.upper() for p in parts]
+                if "AS" in upper_parts:
+                    as_index = upper_parts.index("AS")
+                    if as_index + 1 < len(parts):
+                        stage_aliases.add(parts[as_index + 1])
+
+                # RCA Fix: If image_name is a known alias, it's NOT a supply chain risk
+                if image_name in stage_aliases:
+                    continue
+
+                img_lower = image_name.lower()
+                
+                # RCA Fix: Improved logic for tags vs ports in private registries
+                # Считаем, что тег отсутствует, если в последнем сегменте пути нет ':' или '@'
+                # Пример: my-registry:5000/image -> нет тега (двоеточие не в конце)
+                
+                has_digest = "@sha256:" in img_lower
+                
+                # Ищем двоеточие тега: оно должно быть после последнего слеша (если он есть)
+                last_slash = img_lower.rfind('/')
+                last_colon = img_lower.rfind(':')
+                
+                is_latest = ":latest" in img_lower
+                # Если двоеточие после последнего слеша — это тег. Если его нет — тега нет.
+                has_tag = last_colon > last_slash
+
+                if is_latest or (not has_tag and not has_digest):
+                    violations.append(
+                        f"SUPPLY-001: Mutable image tag '{image_name}' detected in {path} at line {line_num}. "
+                        f"Action: Pin the image to a specific version tag or a SHA-256 digest."
+                    )
+
+        return violations
+
+==========================================================================================
+FILE: secrets/__init__.py
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: secrets/hardcoded_logic.py
+SIZE: 3287 bytes
+LINES: 71
+ENCODING: utf-8
+SHA256: 924fcae86ed091277a19f0fec094a68a0dca4778713e7d54ef312663571414d2
+==========================================================================================
+
+import re
+import os
+import logging
+from typing import List, Dict
+from sentinel.rules.base import BaseRule
+
+logger = logging.getLogger(__name__)
+
+class SecretsRule(BaseRule):
+    def __init__(self):
+        super().__init__()
+        self.id = "SEC-001"
+        self.severity = "BLOCK"
+        self.cwe_id = "CWE-798"
+        self.description = "Detection of credentials, private keys, and insecure settings."
+        self.rationale = "Hardcoded secrets lead to immediate infrastructure compromise."
+
+        # RCA Fix: Removed forbidden messenger mention, updated regex
+        self.patterns = {
+            "AWS Access Key": r"AKIA[0-9A-Z]{16}",
+            "Private Key": r"-----BEGIN (RSA|OPENSSH|DSA|EC|PGP)? PRIVATE KEY-----",
+            "Slack Bot Token": r"xox[bapz]-[0-9]{12}-[0-9]{12}-[a-zA-Z0-9]{24}",
+            "Generic Bearer Token": r"Bearer\s+[a-zA-Z0-9_\-\.]{32,}",
+            "Hardcoded Password": r"(?i)(password|pwd|db_pass|admin_pass)\s*[:=]\s*['\"][^'\" ]{4,}['\"]",
+            "Insecure TLS (Python)": r"verify\s*=\s*False",
+            "Insecure TLS (NodeJS)": r"NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['\"]?0['\"]?",
+        }
+
+    def check(self, artifacts: Dict[str, any]) -> List[str]:
+        violations = []
+        
+        # RCA Fix: Collect context from ArtifactCollector categories
+        test_files = set(artifacts.get("infra", []) + artifacts.get("source_code", []))
+        # Identify files that are likely for testing based on path
+        test_paths = {p for p in artifacts.get("all_files", []) if any(x in p.lower() for x in ["test", "mock", "fixture"])}
+
+        # Iterate over all collected files with content
+        all_content = {}
+        for cat in artifacts.values():
+            if isinstance(cat, dict):
+                all_content.update(cat)
+
+        for path, content in all_content.items():
+            # RCA Fix: Skip sentinel logic itself
+            if "sentinel/" in path.replace("\\", "/"):
+                continue
+
+            lines = content.splitlines()
+            for line_num, line in enumerate(lines, 1):
+                clean_line = line.strip()
+                if len(clean_line) < 8:
+                    continue
+
+                for secret_type, regex in self.patterns.items():
+                    if re.search(regex, clean_line):
+                        # RCA Fix: Decision based on path context + line content
+                        is_test_context = (path in test_paths) or any(h in clean_line.lower() for h in ["example", "fake", "placeholder"])
+                        
+                        if is_test_context:
+                            # Use custom logic for low-severity alerts
+                            violations.append(
+                                f"[WARN] SEC-001-SUSPICIOUS: Potential {secret_type} in {path} at line {line_num}. "
+                                f"Likely non-production artifact (Test/Mock context)."
+                            )
+                        else:
+                            violations.append(
+                                f"[BLOCK] SEC-001: {secret_type} identified in {path} at line {line_num}. "
+                                f"Action: REVOKE IMMEDIATELY AND ROTATE."
+                            )
+                        break
+        return violations
+
+==========================================================================================
+FILE: infra/__init__.py
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: infra/k8s_security.py
+SIZE: 3658 bytes
+LINES: 107
+ENCODING: utf-8
+SHA256: 55c95406b1005d56689b76f340b1bef2886b55bfd1ea69afb7061fafdbaadba0
+==========================================================================================
+
+import yaml
+import logging
+from typing import List, Dict
+from sentinel.rules.base import BaseRule
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("SentinelCore")
+
+
+class K8sSecurityRule(BaseRule):
+    """
+    Enforces Kubernetes security best practices for pod specifications.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.id = "INFRA-001"
+        # self.severity = "BLOCK"
+        self.cwe_id = "CWE-250"
+        self.description = (
+            "Audits K8s manifests for 'runAsNonRoot' and resource limits."
+        )
+        self.rationale = (
+            "Privileged containers and missing limits risk host takeover or DoS."
+        )
+
+    def check(self, artifacts: Dict[str, List[str]]) -> List[str]:
+        # AI Recommendation: Input validation
+        if not isinstance(artifacts, dict) or "infra" not in artifacts:
+            return []
+
+        violations = []
+        infra_files = artifacts.get("infra", [])
+
+        for path in infra_files:
+            content_str = self.read_file(path)
+            if not content_str:
+                continue
+
+            try:
+                # AI Recommendation: Specific exception handling for YAML
+                docs = yaml.safe_load_all(content_str)
+
+                for doc in docs:
+                    if not isinstance(doc, dict) or "kind" not in doc:
+                        continue
+
+                    spec = self._get_pod_spec(doc)
+                    if not spec:
+                        continue
+
+                    pod_sec_ctx = spec.get("securityContext", {})
+                    pod_non_root = pod_sec_ctx.get("runAsNonRoot", False)
+
+                    containers = spec.get("containers", [])
+                    if not isinstance(containers, list):
+                        continue
+
+                    for container in containers:
+                        c_name = container.get("name", "unknown")
+                        c_sec_ctx = container.get("securityContext", {})
+                        run_as_non_root = c_sec_ctx.get("runAsNonRoot", pod_non_root)
+
+                        if not run_as_non_root:
+                            violations.append(
+                                f"INFRA-001: K8s Security Risk in {path}. Container '{c_name}' must set 'runAsNonRoot: true'."
+                            )
+
+                        resources = container.get("resources", {})
+                        if not resources or "limits" not in resources:
+                            violations.append(
+                                f"INFRA-001: K8s Resource Risk in {path}. Missing CPU/Memory limits for container '{c_name}'."
+                            )
+            except yaml.YAMLError as e:
+                logger.error(f"Failed to parse YAML in {path}: {e}")
+                continue
+            except Exception:
+                logger.error(f"Unexpected error during K8s scan of {path}: {e}")
+                continue
+
+        return violations
+
+    def _get_pod_spec(self, doc: dict) -> dict:
+        kind = doc.get("kind")
+        if kind == "Pod":
+            return doc.get("spec")
+
+        controllers = [
+            "Deployment",
+            "StatefulSet",
+            "DaemonSet",
+            "Job",
+            "ReplicaSet",
+            "CronJob",
+        ]
+        if kind in controllers:
+            spec = doc.get("spec", {})
+            if kind == "CronJob":
+                template = (
+                    spec.get("jobTemplate", {}).get("spec", {}).get("template", {})
+                )
+            else:
+                template = spec.get("template", {})
+            return template.get("spec")
+        return None
+
+
+==========================================================================================
+FILE: infra/terraform_security.py
+SIZE: 3038 bytes
+LINES: 71
+ENCODING: utf-8
+SHA256: c5f6f0e00bf5e97e7f934e8fe9a5c39e6cba500bd3389094869df3a21d9a19ea
+==========================================================================================
+
+import re
+from typing import List, Dict
+from sentinel.rules.base import BaseRule
+
+
+class TerraformSecurityRule(BaseRule):
+    """
+    Analyzes Terraform configuration files for infrastructure-level vulnerabilities.
+    Specifically targets management ports (SSH/RDP) exposed to the public internet.
+    """
+
+    def __init__(self):
+        super().__init__()
+        # SYSTEM SYNCHRONIZATION: This ID is hard-locked in engine.py (Anti-Sabotage policy).
+        # It cannot be overridden to 'WARN' status by the client configuration.
+        self.id = "INFRA-TF-001"
+        # self.severity = "BLOCK"
+        self.cwe_id = "CWE-668"
+        self.description = "Critical management ports (SSH/RDP) exposed to 0.0.0.0/0."
+        self.rationale = "Publicly accessible management ports are high-risk vectors for automated brute-force attacks."
+
+    def check(self, artifacts: Dict[str, List[str]]) -> List[str]:
+        """
+        Scans infrastructure artifacts for insecure network configurations.
+        Uses optimized pattern matching to detect public CIDR blocks and management ports.
+        """
+        violations = []
+
+        # Systematically utilize the 'infra' category pre-filtered by the ArtifactCollector
+        tf_files = [p for p in artifacts.get("infra", []) if p.endswith(".tf")]
+
+        for path in tf_files:
+            content = self.read_file(path)
+            if not content:
+                continue
+
+            # 1. Detection of wide-open CIDR blocks (supports various quote types and spacing)
+            # Looks for ["0.0.0.0/0"] or ['0.0.0.0/0']
+            has_open_cidr = re.search(
+                r'cidr_blocks\s*=\s*\[.*["\']0\.0\.0\.0/0["\'].*\]', content
+            )
+
+            if not has_open_cidr:
+                continue
+
+            # 2. SSH Audit (Port 22)
+            # Detects port = 22 or ranges including the standard SSH port
+            if re.search(r"(from_port|to_port|port)\s*=\s*22\b", content):
+                violations.append(
+                    f"INFRA-001: Insecure Infrastructure in {path}. SSH (port 22) is open to 0.0.0.0/0. "
+                    f"Action: Restrict 'cidr_blocks' to authorized IP ranges only."
+                )
+
+            # 3. RDP Audit (Port 3389)
+            if re.search(r"(from_port|to_port|port)\s*=\s*3389\b", content):
+                violations.append(
+                    f"INFRA-001: Insecure Infrastructure in {path}. RDP (port 3389) is open to 0.0.0.0/0. "
+                    f"Action: Close port 3389 or utilize a Bastion/VPN for access."
+                )
+
+            # 4. Full Protocol Audit (Critical Vulnerability)
+            # Detects instances where all protocols and ports are exposed
+            if re.search(r"from_port\s*=\s*0\b", content) and re.search(
+                r'protocol\s*=\s*["\']-1["\']', content
+            ):
+                violations.append(
+                    f"INFRA-001: CRITICAL Security Risk in {path}. All protocols and ports are exposed to the internet."
+                )
+
+        return violations
+
+
+==========================================================================================
+FILE: cicd/__init__.py
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: cicd/gh_pinning.py
+SIZE: 3166 bytes
+LINES: 80
+ENCODING: utf-8
+SHA256: ed6472b709b251fb9557da1d6423ea6fddcdaf71f95bc0ed0cf61391a4a74ed1
+==========================================================================================
+
+import re
+from typing import List, Dict
+from sentinel.rules.base import BaseRule
+
+
+class GithubActionPinningRule(BaseRule):
+    """
+    Enforces security best practices for GitHub Actions by requiring full commit SHA pinning.
+    Protects the CI/CD pipeline against supply chain attacks via mutable version tags.
+    """
+
+    def __init__(self):
+        super().__init__()
+        # SYSTEM SYNCHRONIZATION: Part of the immutable 'SEC-001' policy set.
+        # This ID is protected within the core engine to prevent unauthorized downgrades.
+        self.id = "CICD-001"
+        # self.severity = "BLOCK"
+        self.cwe_id = "CWE-1104"
+        self.description = (
+            "Ensures GitHub Actions are pinned to an immutable 40-character commit SHA."
+        )
+        self.rationale = "Tags (like @v1) can be moved by attackers or maintainers. Only a SHA ensures code integrity."
+
+    def check(self, artifacts: Dict[str, List[str]]) -> List[str]:
+        """
+        Analyzes GitHub Workflow files for unpinned third-party actions.
+        """
+        violations = []
+        # The Collector provides a filtered list of workflow files
+        workflow_files = artifacts.get("workflows", [])
+
+        for path in workflow_files:
+            # Utilize BaseRule's safe YAML loader
+            content = self.load_yaml(path)
+            if not content or not isinstance(content, dict):
+                continue
+
+            jobs = content.get("jobs", {})
+            if not isinstance(jobs, dict):
+                continue
+
+            for job_id, job_data in jobs.items():
+                if not isinstance(job_data, dict):
+                    continue
+
+                steps = job_data.get("steps", [])
+                if not isinstance(steps, list):
+                    continue
+
+                for step in steps:
+                    if not isinstance(step, dict):
+                        continue
+
+                    action = step.get("uses")
+
+                    # Skip empty, local-path, or Docker-based actions
+                    if (
+                        not action
+                        or not isinstance(action, str)
+                        or action.startswith("./")
+                        or action.startswith("docker://")
+                    ):
+                        continue
+
+                    if "@" in action:
+                        name, version = action.split("@", 1)
+                        # Regex for strict SHA-1 match (exactly 40 hexadecimal characters)
+                        if not re.match(r"^[0-9a-f]{40}$", version):
+                            violations.append(
+                                f"SEC-001: Unpinned action '{action}' in job '{job_id}' ({path}). "
+                                f"Current version: '{version}'. Required: 40-character SHA."
+                            )
+                    else:
+                        # Actions without any version reference (implicit @latest) are critical risks
+                        violations.append(
+                            f"SEC-001: Action '{action}' in {path} (job: {job_id}) is missing a version pin."
+                        )
+
+        return violations
+
+
+==========================================================================================
+FILE: iot/__init__.py
+SIZE: 0 bytes
+LINES: 1
+ENCODING: utf-8
+SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+==========================================================================================
+
+
+
+==========================================================================================
+FILE: iot/iot_mqtt_security.py
+SIZE: 1036 bytes
+LINES: 32
+ENCODING: utf-8
+SHA256: 108d0ace96aee8dbe54f29eb3f92453c9ac6720d1c904a5717d362685a309687
+==========================================================================================
+
+import re
+from sentinel.rules.base import BaseRule
+
+
+class IoTMQTTSecurityRule(BaseRule):
+    def __init__(self):
+        super().__init__()
+        self.id = "CICD-001"
+        # self.severity = "BLOCK"
+        self.cwe_id = "CWE-319"
+        self.rationale = "Insecure MQTT (port 1883) found. IoT devices must use port 8883 with TLS/SSL encryption."
+
+    def check(self, artifacts):
+        findings = []
+        files = artifacts.get("all_files", {})
+        iterable = files.items() if isinstance(files, dict) else []
+        for file_path, content in files.items():
+            if "sentinel/rules/" in file_path:
+                continue
+
+            if "1883" in content:
+                findings.append(f"Insecure MQTT port 1883 detected in {file_path}")
+
+            if (
+                "mqtt" in content.lower()
+                and "connect" in content
+                and "tls_set" not in content
+            ):
+                findings.append(f"MQTT connection without TLS detected in {file_path}")
+
+        return findings
+
+
+===== BUNDLE SUMMARY =====
+Total files: 14
+Total size: 20571 bytes
