@@ -90,15 +90,110 @@ if spec:
     print(os.path.dirname(os.path.dirname(spec.origin)))
 " 2>/dev/null || echo "")
 
-if [ -n "$PKG_DIR" ] && [ -d "$PKG_DIR" ]; then
-    ok "Package found at: $PKG_DIR"
-    [ ! -f "audit-config.yml" ]        && [ -f "$PKG_DIR/audit-config.yml" ]        && cp "$PKG_DIR/audit-config.yml" .        && ok "audit-config.yml copied"
-    [ ! -f ".pre-commit-config.yaml" ] && [ -f "$PKG_DIR/.pre-commit-config.yaml" ] && cp "$PKG_DIR/.pre-commit-config.yaml" . && ok ".pre-commit-config.yaml copied"
-    [ ! -f "sentinel.yaml" ]           && [ -f "$PKG_DIR/sentinel.yaml" ]           && cp "$PKG_DIR/sentinel.yaml" .           && ok "sentinel.yaml copied"
-    [ ! -f ".env.example" ]            && [ -f "$PKG_DIR/.env.example" ]            && cp "$PKG_DIR/.env.example" .            && ok ".env.example copied"
-    [ ! -f "TERMS_OF_USE.md" ]         && [ -f "$PKG_DIR/TERMS_OF_USE.md" ]         && cp "$PKG_DIR/TERMS_OF_USE.md" .         && ok "TERMS_OF_USE.md copied"
-else
-    warn "Could not locate package directory — config files may need to be copied manually"
+# Скачиваем конфиг файлы напрямую с GitHub (надёжнее чем из site-packages)
+RAW_URL="https://raw.githubusercontent.com/DataWizual/sentinel-core-v2_1/main"
+
+download_if_missing() {
+    local filename="$1"
+    if [ ! -f "$filename" ]; then
+        curl -fsSL "${RAW_URL}/${filename}" -o "$filename" 2>/dev/null && ok "$filename downloaded" || warn "$filename: download failed"
+    else
+        ok "$filename already exists"
+    fi
+}
+
+# .env.example вшит прямо в start.sh — не зависит от сети или пакета
+if [ ! -f ".env.example" ]; then
+    cat > .env.example << 'ENVEOF'
+# ============================================================
+# Sentinel Core — Environment Configuration
+# Скопируй в .env и заполни своими значениями:
+#   cp .env.example .env
+# ============================================================
+
+# --- Licensing ---
+# Получить Machine ID: python3 get_id.py
+# Отправить на eldorzufarov66@gmail.com для получения ключа
+AUDITOR_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
+SENTINEL_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
+SENTINEL_ALERT_TOKEN=YOUR_GITHUB_TOKEN_HERE
+SENTINEL_ADMIN_REPO=DataWizual/sentinel-core-v2_1
+
+# --- License Salt (задаётся при деплое) ---
+AUDITOR_LICENSE_SALT=YOUR_SALT_HERE
+
+# --- AI Advisory (Google Gemini) ---
+GOOGLE_API_KEY=YOUR_GEMINI_API_KEY_HERE
+GOOGLE_MODEL=gemini-2.5-flash
+
+# --- AI Advisory (Groq — опционально) ---
+GROQ_API_KEY=YOUR_GROQ_API_KEY_HERE
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# --- Scanner Limits ---
+MAX_FINDINGS=5000
+MAX_FILE_SIZE=1048576
+
+# --- Logging ---
+LOG_LEVEL=INFO
+ENVEOF
+    ok ".env.example created"
+fi
+
+# audit-config.yml — тоже вшиваем
+if [ ! -f "audit-config.yml" ]; then
+    cat > audit-config.yml << 'CFGEOF'
+# Auditor Core — внутренний конфиг для работы внутри Sentinel
+scanner:
+  offline_mode: false
+  baseline_file: "baseline.json"
+  max_file_size_kb: 500
+  exclude_patterns:
+    - "*.min.js"
+    - "*.lock"
+    - "*.pyc"
+    - "*.whl"
+    - "*.so"
+    - "*.pack"
+    - "node_modules/*"
+    - "venv/*"
+    - ".venv/*"
+    - ".git/*"
+    - "__pycache__/*"
+    - "dist/*"
+    - "build/*"
+    - "reports/*"
+    - "site-packages/*"
+
+detectors:
+  bandit_detector: true
+  semgrep_detector: true
+  gitleaks_detector: true
+  secret_detector: true
+  dependency_scanner: true
+  iac_scanner: true
+  cicd_analyzer: true
+  sast_scanner: true
+  slither_detector: false
+  license_scanner: false
+
+ai:
+  enabled: true
+  provider: "google"
+  model: "gemini-2.5-flash"
+  max_findings_per_scan: 15
+  min_severity_for_ai: "LOW"
+  batch_size: 3
+  sleep_between_batches: 20
+
+reporting:
+  output_dir: "reports"
+
+policy:
+  fail_on_severity: "HIGH"
+  min_severity_for_ai: "LOW"
+CFGEOF
+    ok "audit-config.yml created"
 fi
 
 # =================================================================
