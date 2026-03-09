@@ -27,7 +27,7 @@ class RuleBasedAdvisor:
 
             # 2. Try generic detector match if rule match fails
             if not advice:
-                # Дополнительный поиск по CWE из meta
+                # Additional lookup by CWE from meta
                 cwe = (getattr(f, "meta", {}) or {}).get("cwe", "")
                 if cwe:
                     advice = REMEDIATION_TEMPLATES.get(cwe)

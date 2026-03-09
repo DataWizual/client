@@ -23,10 +23,10 @@ class ExternalLLMAdvisor:
                 "Ensure the variable is exported in the environment before starting the auditor."
             )
 
-        # Очистка названия модели от префикса 'models/'
+        # Strip 'models/' prefix if present in model name
         self.model = raw_model.replace("models/", "")
 
-        # v1beta — официальный endpoint Google AI Studio для всех Gemini моделей
+        # v1beta — official Google AI Studio endpoint for all Gemini models
         self.provider_url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.model}:generateContent?key={self.api_key}"
@@ -80,7 +80,7 @@ class ExternalLLMAdvisor:
 
                 elif response.status_code == 400:
                     logger.error(f"❌ API 400 Error: {response.text}")
-                    return None  # ретраить бессмысленно
+                    return None  # No point retrying a bad request
 
                 elif response.status_code == 429:
                     error_body = response.json()
@@ -140,7 +140,7 @@ class ExternalLLMAdvisor:
             """
         ).strip()
 
-        # --- ШАГ 1: ФОРМИРОВАНИЕ ПОЛНОГО МОНОЛИТНОГО ДАМПА ---
+        # --- STEP 1: BUILD FULL MONOLITHIC EVIDENCE DUMP ---
         all_evidence_blocks = []
         try:
             os.makedirs(os.path.dirname(self.input_dump), exist_ok=True)
@@ -169,7 +169,7 @@ class ExternalLLMAdvisor:
         except Exception as e:
             logger.error(f"❌ Failed to create full dump: {e}")
 
-        # --- ШАГ 2: ОБРАБОТКА ЧАНКОВ И ОТПРАВКА ---
+        # --- STEP 2: CHUNK PROCESSING AND DISPATCH ---
         all_advice = []
         chunk_size = 5
         evidence_chunks = [
@@ -233,12 +233,12 @@ class ExternalLLMAdvisor:
     def _parse_ai_response(self, content: str) -> List[Dict]:
         final_results = []
         try:
-            # 1. Очистка от Markdown-мусора (```json ... ```)
+            # 1. Strip Markdown formatting (```json ... ```)
             clean_content = re.sub(r"```json|```", "", content).strip()
 
             found_objects = []
 
-            # 2. Пробуем прямой парсинг
+            # 2. Attempt direct JSON parse
             try:
                 data = json.loads(clean_content)
                 if isinstance(data, list):
@@ -246,7 +246,7 @@ class ExternalLLMAdvisor:
                 elif isinstance(data, dict):
                     found_objects = [data]
             except (json.JSONDecodeError, ValueError):
-                # 3. Fallback: ищем объекты через регулярку
+                # 3. Fallback: extract objects via regex
                 raw_objects = re.findall(
                     r"\{\s*\"finding_id\".*?\}", clean_content, re.DOTALL
                 )
@@ -256,7 +256,7 @@ class ExternalLLMAdvisor:
                     except json.JSONDecodeError:
                         continue
 
-            # FIX: цикл был сломан — отступы confidence и advice_text были вне for
+            # NOTE: confidence and advice_text must remain inside the for loop
             for item in found_objects:
                 fid = item.get("finding_id")
                 if not fid:

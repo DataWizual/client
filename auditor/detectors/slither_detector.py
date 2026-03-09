@@ -60,7 +60,7 @@ class SlitherDetector(DetectorPlugin):
             os.close(tmp_fd)
 
             try:
-                # Строим команду полностью ДО запуска процесса
+                # Build the full command before launching the process
                 cmd = [
                     self.slither_bin,
                     str(target_abs),

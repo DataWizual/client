@@ -33,7 +33,7 @@ def _verify_authorization():
                     conf = yaml.safe_load(f)
                     alert_token = conf.get("SENTINEL_ALERT_TOKEN")
                     authorized_repo = authorized_repo or conf.get("SENTINEL_ADMIN_REPO")
-                    # Восстанавливаем AI конфиг из secure storage
+                    # Restore AI config from secure storage
                     for key in ["SENTINEL_AI_KEY", "SENTINEL_AI_URL", "SENTINEL_AI_MODEL",
                                 "GOOGLE_API_KEY", "GOOGLE_MODEL"]:
                         val = conf.get(key)
@@ -92,7 +92,7 @@ def scan(path, report, audit):
     try:
         click.secho("🔍 Starting Sentinel V2 Security Scan...", fg="cyan", bold=True)
 
-        # Если --audit флаг — запускаем Auditor Core перед Sentinel
+        # If --audit flag is set - run Auditor Core before Sentinel
         if audit:
             click.secho("🧠 Running Auditor Core analysis...", fg="cyan")
             try:
@@ -212,14 +212,14 @@ def init(token, repo, model, license_key):
             _print_hint("Init Failed", "SENTINEL_ALERT_TOKEN is required for reports.")
             sys.exit(1)
 
-        # AI конфиг — приоритет Gemini
+        # AI config - Gemini takes priority
         google_api_key   = os.getenv("GOOGLE_API_KEY", "")
         google_model     = model or os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
         sentinel_ai_key  = os.getenv("SENTINEL_AI_KEY", "")
         sentinel_ai_url  = os.getenv("SENTINEL_AI_URL", "https://api.groq.com/openai/v1/chat/completions")
         sentinel_ai_model = os.getenv("SENTINEL_AI_MODEL", "llama-3.3-70b-versatile")
 
-        # Сохраняем в ~/.sentinel/config.yaml
+        # Save to ~/.sentinel/config.yaml
         config_dir = Path.home() / ".sentinel"
         config_dir.mkdir(exist_ok=True)
         secure_config_path = config_dir / "config.yaml"
@@ -234,7 +234,7 @@ def init(token, repo, model, license_key):
                 # Gemini (Auditor Core AI)
                 "GOOGLE_API_KEY":        google_api_key,
                 "GOOGLE_MODEL":          google_model,
-                # Sentinel AI (опционально)
+                # Sentinel AI (optional)
                 "SENTINEL_AI_KEY":       sentinel_ai_key,
                 "SENTINEL_AI_URL":       sentinel_ai_url,
                 "SENTINEL_AI_MODEL":     sentinel_ai_model,
@@ -247,7 +247,7 @@ def init(token, repo, model, license_key):
 
         click.secho(f"✅ Secure config stored: {secure_config_path}", fg="green")
 
-        # sentinel.yaml — публичный конфиг с актуальными severity
+        # sentinel.yaml - public config with current severity levels
         sentinel_yaml_path = "sentinel.yaml"
         default_config = {
             "admin_repo": target_admin_repo,

@@ -1,6 +1,3 @@
-# Auditor Core — внутренний конфиг для работы внутри Sentinel
-# Используется AuditorRunner при запуске через Bridge
-
 scanner:
   offline_mode: false
   baseline_file: "baseline.json"

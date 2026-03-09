@@ -50,7 +50,7 @@ class JSONReporter(BaseReporter):
                 import ast
 
                 def _parse_advice(advice):
-                    """Распаковывает advice в словарь если это строка."""
+                    """Unpacks advice into a dict if it is a string."""
                     if isinstance(advice, dict):
                         return advice
                     if isinstance(advice, str):
@@ -62,12 +62,12 @@ class JSONReporter(BaseReporter):
                             pass
                     return {"advice": str(advice), "type": "advisory"}
 
-                # Если пришел словарь {uuid: advice}
+                # If input is a dict {uuid: advice}
                 if isinstance(ai_recommendations, dict):
                     for fid, advice in ai_recommendations.items():
                         parsed = _parse_advice(advice)
                         ai_map[str(fid)] = parsed
-                # Если пришел список [{"finding_id": "...", "advice": "..."}]
+                # If input is a list [{"finding_id": "...", "advice": "..."}]
                 elif isinstance(ai_recommendations, list):
                     for r in ai_recommendations:
                         if isinstance(r, dict):

@@ -100,22 +100,22 @@ class SentinelEngine:
         self.ai_engine = AIEngine()
         self._autodiscover_rules(self.rules_root)
 
-        # Bridge: подключаем Auditor Core если доступен
+        # Bridge: connect Auditor Core if available
         self._bridge = self._init_bridge()
 
     def _init_bridge(self):
         """
-        Инициализирует Bridge с Auditor Core.
-        Если отчёт уже есть — passive режим (читает JSON).
-        Если нет — active режим (запускает AuditorRunner через auto_run=True).
-        Не падает если Auditor недоступен.
+        Initializes Bridge with Auditor Core.
+        If report already exists - passive mode (reads JSON).
+        If not - active mode (runs AuditorRunner via auto_run=True).
+        Does not fail if Auditor is unavailable.
         """
         try:
             from sentinel.bridge import AuditorBridge
-            # Загружаем audit-config.yml для AuditorRunner
+            # Load audit-config.yml for AuditorRunner
             audit_cfg = {}
-            # Ищем audit-config.yml в рабочей папке клиента (cwd)
-            # и как fallback — рядом с пакетом
+            # Look for audit-config.yml in the client working directory (cwd)
+            # and as fallback - next to the package
             audit_cfg_candidates = [
                 Path.cwd() / "audit-config.yml",
                 Path(__file__).parent.parent / "audit-config.yml",
@@ -138,7 +138,7 @@ class SentinelEngine:
                 auditor_config=audit_cfg,
                 license_key=license_key,
             )
-            # ensure_report вызывается в evaluate() с конкретным target_path
+            # ensure_report is called in evaluate() with a specific target_path
             return bridge
         except ImportError:
             logger.debug("Bridge: sentinel.bridge not available.")
@@ -157,10 +157,10 @@ class SentinelEngine:
 
     def _determine_context(self, path):
         p = str(path).lower().replace("\\", "/")
-        # TEST имеет приоритет — даже над INFRA
+        # TEST takes priority - even over INFRA
         if any(x in p for x in ["/test", "/fixture", "/mock", "test_", ".test."]):
             return "TEST"
-        # FIX: убраны .yml/.yaml и setup.py — они не являются инфрой
+        # FIX: removed .yml/.yaml and setup.py - they are not infrastructure
         if any(x in p for x in [".github", "docker", "terraform", "compose", ".tf", ".hcl"]):
             return "INFRA"
         if any(x in p for x in ["/docs", "readme", ".md", ".svg"]):
@@ -175,7 +175,7 @@ class SentinelEngine:
             "cicd-":   "iac_scanner",
             "iot-":    "slitherdetector",
             "sup-":    "bandit",
-            "auditor-": "semgrep",  # Bridge findings используют semgrep scope
+            "auditor-": "semgrep",  # Bridge findings use semgrep scope
         }
         target_scope = next((v for k, v in scope_map.items() if rid.startswith(k)), rid)
         for rule in self.semantic_rules:
@@ -234,7 +234,7 @@ class SentinelEngine:
             if isinstance(cat_dict, dict):
                 full_flat_content.update(cat_dict)
 
-        # ── STAGE 1: Собственные правила Sentinel ──────────────────────────────
+        # ── STAGE 1: Sentinel native rules ─────────────────────────────────
         for rule in self.rules:
             try:
                 rid = getattr(rule, "id", "GENERIC").upper()
@@ -275,7 +275,7 @@ class SentinelEngine:
         # ── STAGE 2: Auditor Core Bridge ───────────────────────────────────────
         if self._bridge:
             try:
-                # Убеждаемся что отчёт есть — если нет, запускаем AuditorRunner
+                # Ensure report exists - if not, run AuditorRunner
                 self._bridge.ensure_report(target_path=self.root_path)
                 bridge_violations = self._bridge.load_violations()
                 for bv in bridge_violations:
@@ -292,7 +292,7 @@ class SentinelEngine:
             except Exception as e:
                 print(f"⚠️ Bridge error: {e}", file=sys.stderr)
 
-        # ── Сортировка по severity ─────────────────────────────────────────────
+        # ── Sort by severity ────────────────────────────────────────────────
         structured_results.sort(
             key=lambda x: self.SEVERITY_ORDER.get(x.get("severity"), 99)
         )
@@ -313,7 +313,7 @@ class SentinelEngine:
                 f'<div class="ai-box"><strong>AI Insight:</strong> {r["ai_insight"]}</div>'
                 if r.get("ai_insight") else ""
             )
-            # Метка источника для Bridge findings
+            # Source label for Bridge findings
             source_tag = (
                 '<br><span style="font-size:10px; color:#6366f1;">🔗 Auditor Core</span>'
                 if r.get("_source") == "auditor_bridge" else ""

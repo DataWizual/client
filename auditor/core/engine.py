@@ -202,12 +202,12 @@ class AuditProcessor:
                 try:
                     with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
                         lines = f.readlines()
-                        # Сохраняем не весь файл, а окно +- 50 строк для ИИ
+                        # Save a +-50 line window around the finding for AI context
                         start = max(0, new_f.line - 50)
                         end = min(len(lines), new_f.line + 50)
                         relevant_code = "".join(lines[start:end])
 
-                        # Сохраняем это в мета-данные
+                        # Store the snippet in finding metadata
                         new_f.meta["_source_code_snippet"] = relevant_code
                         new_f.meta["_file_content_for_validation"] = "".join(lines)
                         new_f.meta.pop("_file_content_for_validation", None)

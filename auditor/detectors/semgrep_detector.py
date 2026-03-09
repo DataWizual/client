@@ -125,7 +125,7 @@ class SemgrepDetector(DetectorPlugin):
                     "HIGH": "HIGH",
                     "WARNING": "HIGH",
                     "MEDIUM": "MEDIUM",
-                    "INFO": "INFO",  # ← сохранить оригинальный уровень
+                    "INFO": "INFO",  # ← keep original severity level
                     "LOW": "LOW",
                 }
 

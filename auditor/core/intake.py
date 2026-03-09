@@ -99,7 +99,7 @@ class FileIntake:
                         "System Error: 'git' is not installed or not in PATH."
                     )
 
-                # ✅ ИСПРАВЛЕНИЕ: валидация URL перед передачей в subprocess
+                # ✅ FIX: validate URL before passing to subprocess
                 if not self._validate_git_url(target):
                     raise ValueError(f"Unsafe or invalid git URL rejected: {target}")
 

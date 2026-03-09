@@ -38,7 +38,7 @@ class Decision:
     credibility_status: str = "STABLE_SCAN_PROFILE"
 
     # RCA metadata for reporters (WSPM rca block, reachability stats, methodology)
-    meta: Dict[str, Any] = field(default_factory=dict)  # ← добавить эту строку
+    meta: Dict[str, Any] = field(default_factory=dict)  # ← required for reporter compatibility
 
 
 class PolicyEngine:

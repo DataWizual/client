@@ -32,12 +32,12 @@ class DockerIntegrityRule(BaseRule):
                 parts = clean_line.split()
                 image_name = ""
                 
-                # Поиск имени образа (пропуск флагов --platform)
+                # Find image name (skip --platform flags)
                 for i, part in enumerate(parts):
                     if part.upper() == "FROM":
                         for j in range(i + 1, len(parts)):
                             if not parts[j].startswith("--"):
-                                image_name = parts[j] # Сохраняем регистр для alias
+                                image_name = parts[j] # Preserve case for alias
                                 break
                         break
 
@@ -59,17 +59,17 @@ class DockerIntegrityRule(BaseRule):
                 img_lower = image_name.lower()
                 
                 # RCA Fix: Improved logic for tags vs ports in private registries
-                # Считаем, что тег отсутствует, если в последнем сегменте пути нет ':' или '@'
-                # Пример: my-registry:5000/image -> нет тега (двоеточие не в конце)
+                # Tag is absent if the last path segment contains no ':' or '@'
+                # Example: my-registry:5000/image -> no tag (colon is not at the end)
                 
                 has_digest = "@sha256:" in img_lower
                 
-                # Ищем двоеточие тега: оно должно быть после последнего слеша (если он есть)
+                # Look for tag colon: it must appear after the last slash (if any)
                 last_slash = img_lower.rfind('/')
                 last_colon = img_lower.rfind(':')
                 
                 is_latest = ":latest" in img_lower
-                # Если двоеточие после последнего слеша — это тег. Если его нет — тега нет.
+                # If colon appears after last slash - it is a tag. If absent - no tag.
                 has_tag = last_colon > last_slash
 
                 if is_latest or (not has_tag and not has_digest):

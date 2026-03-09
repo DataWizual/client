@@ -28,7 +28,7 @@ class AIDetector(DetectorPlugin):
 
         self.provider_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
-        # Локальные опции
+        # Local backend options
         self.backend = os.getenv("AI_BACKEND", "external")  # external | local
         self.local_model_path = os.getenv("LOCAL_MODEL_PATH", "./models/llama-3-7b")
         self._local_pipeline = None
@@ -152,7 +152,7 @@ class AIDetector(DetectorPlugin):
             "Content-Type": "application/json; charset=utf-8",
         }
 
-        # Текст запроса к модели
+        # Prompt text for the model
         user_prompt = (
             f"You are a Senior Security Researcher. Analyze the provided code for vulnerabilities.\n"
             f"STRICT RULES:\n"
@@ -178,7 +178,7 @@ class AIDetector(DetectorPlugin):
                 )
 
                 if response.status_code == 200:
-                    # Ответ Google API возвращает список кандидатов
+                    # Google API response contains a list of candidates
                     result_json = response.json()
                     candidates = result_json.get("candidates", [])
                     if candidates:

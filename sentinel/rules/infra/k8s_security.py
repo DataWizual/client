@@ -15,8 +15,8 @@ class K8sSecurityRule(BaseRule):
 
     def __init__(self):
         super().__init__()
-        # FIX: Отдельный ID чтобы не конфликтовать с INFRA-001 в IMMUTABLE_RULES
-        # INFRA-001 зарезервирован для Terraform (terraform_security.py)
+        # FIX: Separate ID to avoid conflict with INFRA-001 in IMMUTABLE_RULES
+        # INFRA-001 is reserved for Terraform (terraform_security.py)
         self.id = "INFRA-K8S-001"
         # self.severity = "BLOCK"
         self.cwe_id = "CWE-250"
@@ -74,7 +74,7 @@ class K8sSecurityRule(BaseRule):
             except yaml.YAMLError as e:
                 logger.error(f"Failed to parse YAML in {path}: {e}")
                 continue
-            except Exception as e:  # FIX: добавлен 'as e' — раньше e не был определён
+            except Exception as e:  # FIX: added 'as e' - previously e was undefined
                 logger.error(f"Unexpected error during K8s scan of {path}: {e}")
                 continue
 

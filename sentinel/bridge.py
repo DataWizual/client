@@ -1,17 +1,17 @@
 """
-Auditor Bridge — связующий модуль между Auditor Core и Sentinel Engine.
+Auditor Bridge - connecting module between Auditor Core and Sentinel Engine.
 
-Два режима работы:
-1. Passive  — читает уже существующий JSON отчёт (быстро, для CI)
-2. Active   — сам запускает AuditorRunner, генерирует отчёт, читает результат
+Two operating modes:
+1. Passive  - reads an existing JSON report (fast, for CI)
+2. Active   - runs AuditorRunner itself, generates report, reads result
 
-Структура JSON отчёта от JSONReporter:
+JSON report structure from JSONReporter:
 {
     "findings": [
         {
             "id": "...",
             "severity": "HIGH",
-            "ai_advisory": {          ← ai_recommendations вшиты внутрь finding
+            "ai_advisory": {          # ai_recommendations embedded inside finding
                 "verdict": "SUPPORTED",
                 "reasoning": "...",
                 "confidence": 85
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 class AuditorBridge:
     """
-    Мост между Auditor Core и Sentinel.
-    Sentinel не анализирует — он только исполняет решение Auditor.
+    Bridge between Auditor Core and Sentinel.
+    Sentinel does not analyze - it only enforces the Auditor decision.
     """
 
     SEVERITY_MAP = {
@@ -50,10 +50,10 @@ class AuditorBridge:
                  auditor_config: Optional[dict] = None, license_key: Optional[str] = None):
         """
         Args:
-            report_path:    Явный путь к JSON отчёту. Если None — ищет последний.
-            auto_run:       Если True и отчёт не найден — запускает AuditorRunner.
-            auditor_config: Конфиг для AuditorRunner (нужен если auto_run=True).
-            license_key:    Лицензионный ключ для AuditorRunner.
+            report_path:    Explicit path to JSON report. If None - finds the latest.
+            auto_run:       If True and no report found - runs AuditorRunner.
+            auditor_config: Config for AuditorRunner (required if auto_run=True).
+            license_key:    License key for AuditorRunner.
         """
         self.auto_run = auto_run
         self.auditor_config = auditor_config or {}
@@ -61,7 +61,7 @@ class AuditorBridge:
         self.report_path = report_path or self._find_latest_report()
 
     def _find_latest_report(self) -> Optional[str]:
-        """Ищет последний JSON отчёт Auditor Core."""
+        """Finds the latest Auditor Core JSON report."""
         search_patterns = [
             "reports/report_*.json",
             "auditor/reports/report_*.json",
@@ -74,13 +74,13 @@ class AuditorBridge:
         return None
 
     def is_available(self) -> bool:
-        """Проверяет доступность отчёта."""
+        """Checks report availability."""
         return bool(self.report_path and os.path.exists(self.report_path))
 
     def ensure_report(self, target_path: str = ".") -> bool:
         """
-        Гарантирует наличие актуального отчёта.
-        Если auto_run=True и отчёта нет — запускает AuditorRunner.
+        Ensures a current report is available.
+        If auto_run=True and no report exists - runs AuditorRunner.
         """
         if self.is_available():
             return True
@@ -104,9 +104,9 @@ class AuditorBridge:
 
     def load_violations(self) -> List[Dict]:
         """
-        Загружает SUPPORTED findings из отчёта и конвертирует в Sentinel violations.
+        Loads SUPPORTED findings from the report and converts them to Sentinel violations.
 
-        JSONReporter хранит AI данные внутри каждого finding в поле ai_advisory:
+        JSONReporter stores AI data inside each finding in the ai_advisory field:
         finding["ai_advisory"]["verdict"] == "SUPPORTED"
         """
         if not self.is_available():
@@ -124,11 +124,11 @@ class AuditorBridge:
         findings = report.get("findings", [])
 
         for finding in findings:
-            # AI данные вшиты внутрь finding в поле ai_advisory
+            # AI data is embedded inside finding in the ai_advisory field
             ai_data = finding.get("ai_advisory", {})
             verdict = ai_data.get("verdict", "")
 
-            # Берём только AI-верифицированные реальные угрозы
+            # Take only AI-verified real threats
             if verdict != "SUPPORTED":
                 continue
 

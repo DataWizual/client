@@ -60,7 +60,7 @@ pip install -q --upgrade pip
 ok "pip updated"
 
 # =================================================================
-# STEP 4 — INSTALL SENTINEL FROM GITHUB (до Machine ID — нужен sentinel)
+# STEP 4 — INSTALL SENTINEL FROM GITHUB (Before Machine ID — sentinel needed)
 # =================================================================
 echo ""
 info "Installing Sentinel Core from GitHub..."
@@ -90,7 +90,7 @@ if spec:
     print(os.path.dirname(os.path.dirname(spec.origin)))
 " 2>/dev/null || echo "")
 
-# Скачиваем конфиг файлы напрямую с GitHub (надёжнее чем из site-packages)
+# Downloading config files directly from GitHub (more reliable than site-packages)
 RAW_URL="https://raw.githubusercontent.com/DataWizual/sentinel-core-v2_1/main"
 
 download_if_missing() {
@@ -102,31 +102,31 @@ download_if_missing() {
     fi
 }
 
-# .env.example вшит прямо в start.sh — не зависит от сети или пакета
+# .env.example embedded in start.sh — independent of network or package
 if [ ! -f ".env.example" ]; then
     cat > .env.example << 'ENVEOF'
 # ============================================================
 # Sentinel Core — Environment Configuration
-# Скопируй в .env и заполни своими значениями:
+# Copy to .env and fill with your values:
 #   cp .env.example .env
 # ============================================================
 
 # --- Licensing ---
-# Получить Machine ID: python3 get_id.py
-# Отправить на eldorzufarov66@gmail.com для получения ключа
+# Get Machine ID: python3 get_id.py
+# Send to eldorzufarov66@gmail.com to receive your key
 AUDITOR_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
 SENTINEL_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
 SENTINEL_ALERT_TOKEN=YOUR_GITHUB_TOKEN_HERE
 SENTINEL_ADMIN_REPO=DataWizual/sentinel-core-v2_1
 
-# --- License Salt (задаётся при деплое) ---
+# --- License Salt (set during deployment) ---
 AUDITOR_LICENSE_SALT=YOUR_SALT_HERE
 
 # --- AI Advisory (Google Gemini) ---
 GOOGLE_API_KEY=YOUR_GEMINI_API_KEY_HERE
 GOOGLE_MODEL=gemini-2.5-flash
 
-# --- AI Advisory (Groq — опционально) ---
+# --- AI Advisory (Groq — optional) ---
 GROQ_API_KEY=YOUR_GROQ_API_KEY_HERE
 GROQ_MODEL=llama-3.3-70b-versatile
 
@@ -140,10 +140,10 @@ ENVEOF
     ok ".env.example created"
 fi
 
-# audit-config.yml — тоже вшиваем
+# audit-config.yml — embedded configuration
 if [ ! -f "audit-config.yml" ]; then
     cat > audit-config.yml << 'CFGEOF'
-# Auditor Core — внутренний конфиг для работы внутри Sentinel
+# Auditor Core — Internal configuration for Sentinel operations
 scanner:
   offline_mode: false
   baseline_file: "baseline.json"
@@ -198,7 +198,7 @@ CFGEOF
 fi
 
 # =================================================================
-# STEP 6 — MACHINE ID (теперь sentinel уже установлен)
+# STEP 6 — MACHINE ID (Sentinel is now installed)
 # =================================================================
 echo ""
 info "Detecting Machine ID for license binding..."
@@ -285,12 +285,12 @@ AUDITOR_LICENSE_KEY="${license_key:-$AUDITOR_LICENSE_KEY}" \
     || fail "Sentinel initialization failed. Check your License Key."
 
 # =================================================================
-# STEP 9 — PRE-COMMIT HOOK (с полным путём к sentinel)
+# STEP 9 — PRE-COMMIT HOOK (With full path to sentinel)
 # =================================================================
 if [ -d ".git" ]; then
     info "Installing pre-commit security hook..."
 
-    # Удаляем старые hooks чтобы не было конфликтов
+    # Remove old hooks to avoid conflicts
     rm -f .git/hooks/pre-commit .git/hooks/pre-commit.legacy
 
     cat > .git/hooks/pre-commit << HOOKEOF

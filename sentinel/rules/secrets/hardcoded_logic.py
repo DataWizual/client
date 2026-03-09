@@ -20,41 +20,41 @@ class SecretsRule(BaseRule):
             "AWS Access Key":        r"AKIA[0-9A-Z]{16}",
             "Private Key":           r"-----BEGIN (RSA|OPENSSH|DSA|EC|PGP)? PRIVATE KEY-----",
             "Slack Bot Token":       r"xox[bapz]-[0-9]{12}-[0-9]{12}-[a-zA-Z0-9]{24}",
-            # FIX: Требуем явный заголовок Authorization чтобы избежать ложных срабатываний
-            # в документации и README примерах
+            # FIX: Require explicit Authorization header to avoid false positives
+            # in documentation and README examples
             "Generic Bearer Token":  r"(?i)Authorization\s*[:=]\s*['\"]?Bearer\s+[a-zA-Z0-9_\-\.]{32,}",
             "Hardcoded Password":    r"(?i)(password|pwd|db_pass|admin_pass)\s*[:=]\s*['\"][^'\" ]{4,}['\"]",
             "Insecure TLS (Python)": r"verify\s*=\s*False",
             "Insecure TLS (NodeJS)": r"NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['\"]?0['\"]?",
         }
 
-        # Признаки non-production контекста в самой строке
+        # Indicators of non-production context in the line itself
         self._fake_hints = ["example", "fake", "placeholder", "dummy", "test", "sample", "your_", "<", ">"]
 
     def check(self, artifacts: Dict[str, any]) -> List[str]:
         violations = []
 
-        # FIX: Правильно строим множество тестовых путей
+        # FIX: Correctly build the set of test paths
         test_paths = {
             p for p in artifacts.get("all_files", [])
             if any(x in p.lower() for x in ["test", "mock", "fixture", "example", "sample", "docs", ".md"])
         }
 
-        # Собираем весь контент из словарей-категорий
+        # Collect all content from category dictionaries
         all_content = {}
         for cat in artifacts.values():
             if isinstance(cat, dict):
                 all_content.update(cat)
 
         for path, content in all_content.items():
-            # Пропускаем внутренние файлы Sentinel
+            # Skip internal Sentinel files
             if "sentinel/" in path.replace("\\", "/"):
                 continue
 
             lines = content.splitlines()
             for line_num, line in enumerate(lines, 1):
                 clean_line = line.strip()
-                # Пропускаем комментарии и слишком короткие строки
+                # Skip comments and lines that are too short
                 if len(clean_line) < 8:
                     continue
                 if clean_line.startswith("#") or clean_line.startswith("//"):
@@ -77,6 +77,6 @@ class SecretsRule(BaseRule):
                                 f"[BLOCK] SEC-001: {secret_type} identified in {path} "
                                 f"at line {line_num}. Action: REVOKE IMMEDIATELY AND ROTATE."
                             )
-                        break  # Одно нарушение на строку
+                        break  # One violation per line
 
         return violations

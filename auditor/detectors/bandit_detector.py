@@ -47,11 +47,11 @@ class BanditDetector(DetectorPlugin):
 
         cmd = ["bandit", "-r", safe_path, "-f", "json", "-q", "--aggregate", "file"]
 
-        # Жёсткие исключения для bandit — всегда
+        # Hard excludes for bandit - always applied
         hard_excludes = ["venv", ".venv", "env", "node_modules", ".git",
                          "__pycache__", "dist", "build"]
 
-        # Берём только реальные директории из exclude списка конфига
+        # Use only real directories from config exclude list
         config_dirs = []
         if exclude:
             for ex in exclude:

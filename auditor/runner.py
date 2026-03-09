@@ -1,10 +1,10 @@
 """
-Auditor Runner — облегчённый пайплайн Auditor Core для работы внутри Sentinel.
+Auditor Runner - lightweight Auditor Core pipeline for use inside Sentinel.
 
-Заменяет orchestrator.py в контексте Sentinel:
-- Нет CLI, нет БД, нет HTML отчёта
-- Только сканирование → AI → JSON отчёт → exit code
-- Вызывается из sentinel/bridge.py
+Replaces orchestrator.py in the Sentinel context:
+- No CLI, no DB, no HTML report
+- Scan only -> AI -> JSON report -> exit code
+- Called from sentinel/bridge.py
 """
 
 import os
@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 class AuditorRunner:
     """
-    Встроенный движок Auditor Core для Sentinel.
-    Запускает полный пайплайн анализа и возвращает путь к JSON отчёту.
+    Embedded Auditor Core engine for Sentinel.
+    Runs the full analysis pipeline and returns the path to the JSON report.
     """
 
     def __init__(self, config: Dict[str, Any], license_key: str):
@@ -31,7 +31,7 @@ class AuditorRunner:
         self.license_key = license_key
         self.ai_config = config.get("ai", {"enabled": False})
 
-        # Импортируем компоненты Auditor
+        # Import Auditor Core components
         from auditor.security.guard import AuditorGuard
         from auditor.core.intake import FileIntake
         from auditor.core.engine import AuditProcessor
@@ -85,13 +85,13 @@ class AuditorRunner:
 
     def run(self, target_path: str) -> Optional[str]:
         """
-        Запускает полный пайплайн анализа.
+        Runs the full analysis pipeline.
 
         Args:
-            target_path: Путь к проекту для сканирования (текущий каталог при git commit)
+            target_path: Path to the project to scan (current directory on git commit)
 
         Returns:
-            Путь к сгенерированному JSON отчёту или None при ошибке
+            Path to the generated JSON report or None on error
         """
         if not self.guard.verify_license(self.license_key, self.guard.get_machine_id()):
             logger.error("🛑 AuditorRunner: License verification failed.")
@@ -101,7 +101,7 @@ class AuditorRunner:
         self.config["project_root"] = str(target)
         allowed_files = self.intake.collect(str(target))
 
-        # ── STAGE 1: Сканирование ──────────────────────────────────────────────
+        # ── STAGE 1: Scanning ──────────────────────────────────────────────────
         all_paths = {
             str(p.relative_to(target)).replace("\\", "/")
             for p in target.rglob("*") if p.is_file()
@@ -133,7 +133,7 @@ class AuditorRunner:
         all_findings_raw = self.processor.get_all_findings()
         all_findings = [self.validator.validate(f) for f in all_findings_raw]
 
-        # Дедупликация
+        # Deduplication
         severity_map = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
         deduped = {}
         for fnd in all_findings:
@@ -146,7 +146,7 @@ class AuditorRunner:
                     deduped[key] = existing.model_copy(update={"severity": fnd.severity})
         all_findings = list(deduped.values())
 
-        # ── STAGE 2: WSPM взвешивание ──────────────────────────────────────────
+        # ── STAGE 2: WSPM weighting ────────────────────────────────────────────
         from auditor.security.taint_engine import analyze_risk_reachability
         for i, fnd in enumerate(all_findings):
             var_match = re.search(r"\{(\w+)\}", fnd.description)
@@ -197,7 +197,7 @@ class AuditorRunner:
             except Exception as e:
                 logger.warning(f"AI Advisory failed: {e}")
 
-        # ── STAGE 4: JSON отчёт ────────────────────────────────────────────────
+        # ── STAGE 4: JSON report ───────────────────────────────────────────────
         decision = self.policy.evaluate(all_findings)
         output_dir = self.config.get("reporting", {}).get("output_dir", "reports")
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -213,7 +213,7 @@ class AuditorRunner:
                 proj_name,
                 ai_recommendations=ai_recommendations_dict or None,
             )
-            # Находим только что созданный файл
+            # Locate the newly created report file
             reports = sorted(Path(output_dir).glob(f"report_{proj_name}*.json"), reverse=True)
             if reports:
                 logger.info(f"✅ AuditorRunner: Report saved → {reports[0]}")
@@ -225,8 +225,8 @@ class AuditorRunner:
 
     def has_critical_findings(self, report_path: str) -> bool:
         """
-        Быстрая проверка: есть ли в отчёте SUPPORTED HIGH/CRITICAL findings.
-        Используется для exit code в pre-commit hook.
+        Quick check: whether the report contains SUPPORTED HIGH/CRITICAL findings.
+        Used for exit code in pre-commit hook.
         """
         import json
         try:

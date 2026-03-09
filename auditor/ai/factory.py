@@ -16,16 +16,16 @@ class AIAdvisorFactory:
     def create(
         ai_config: Dict[str, Any], global_config: Dict[str, Any] = None
     ) -> AIAdvisor:
-        # RCA Fix: Integrate global safety constraints
+        # Integrate global safety constraints
         global_config = global_config or {}
         is_offline = global_config.get("scanner", {}).get("offline_mode", False)
-        # Дефолт False — явное поведение: внешний LLM разрешён если не указано иное.
-        # Пользователь должен явно включить offline_mode: true чтобы заблокировать внешние вызовы.
+        # Default False — explicit behavior: external LLM is allowed unless offline_mode is set.
+        # User must explicitly set offline_mode: true to block external calls.
 
         # Get mode from config, default to rule_based for stability
         mode = ai_config.get("mode", "rule_based")
 
-        # RCA: Safety Lock - force rule_based if offline_mode is active
+        # Safety Lock — force rule_based if offline_mode is active
         if is_offline and mode == "external":
             logger.error(
                 "🛡️ Security Policy Violation: 'external' advisory access blocked while offline_mode=true."

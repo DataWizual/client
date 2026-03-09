@@ -64,15 +64,15 @@ class CicdAnalyzer(DetectorPlugin):
         except Exception:
             return []
 
-        # Жёсткие исключения — всегда независимо от конфига
+        # Hard excludes - always applied regardless of config
         hard_exclude_dirs = {"venv", ".venv", "env", "node_modules", ".git",
                              "__pycache__", "dist", "build", "site-packages"}
 
         for root, dirs, files in os.walk(target_abs):
-            # Применяем жёсткие исключения
+            # Apply hard excludes
             dirs[:] = [d for d in dirs if d not in hard_exclude_dirs]
 
-            # Применяем пользовательские исключения из конфига
+            # Apply user-configured excludes
             if exclude:
                 dirs[:] = [
                     d for d in dirs
@@ -248,7 +248,7 @@ class CicdAnalyzer(DetectorPlugin):
                 variables = data.get("variables", {})
                 if isinstance(variables, dict):
                     for k, v in variables.items():
-                        # Убрать len(v) > 32 — оставить только паттерн-матчинг
+                        # Removed len(v) > 32 check - pattern matching is sufficient
                         if isinstance(v, str) and re.search(
                             r"gh[pousr]_[A-Za-z0-9_]+", v
                         ):

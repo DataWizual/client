@@ -5,7 +5,7 @@ from sentinel.rules.base import BaseRule
 class IoTMQTTSecurityRule(BaseRule):
     def __init__(self):
         super().__init__()
-        # FIX: Исправлен дублирующий ID (был CICD-001 — коллизия с gh_pinning.py)
+        # FIX: Fixed duplicate ID (was CICD-001 - collision with gh_pinning.py)
         self.id = "IOT-001"
         # self.severity = "BLOCK"
         self.cwe_id = "CWE-319"
@@ -21,12 +21,12 @@ class IoTMQTTSecurityRule(BaseRule):
             if "sentinel/rules/" in file_path:
                 continue
 
-            # FIX: Ищем порт 1883 только как сетевой порт, а не произвольное число
-            # Паттерн: port=1883 / port: 1883 / :1883 / "1883" — но не просто "1883" в тексте
+            # FIX: Match port 1883 only as a network port, not an arbitrary number
+            # Pattern: port=1883 / port: 1883 / :1883 / "1883" - but not bare "1883" in text
             if re.search(r'(?:port\s*[:=]\s*1883|:\s*1883\b|["\']1883["\'])', content):
                 findings.append(f"IOT-001: Insecure MQTT port 1883 detected in {file_path}")
 
-            # MQTT без TLS — только если явно используется connect без tls_set
+            # MQTT without TLS - only if connect is used explicitly without tls_set
             if (
                 "mqtt" in content.lower()
                 and re.search(r'\.connect\s*\(', content)

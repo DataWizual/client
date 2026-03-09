@@ -18,7 +18,7 @@ class IntelligenceEngine:
             # JS: name = function... or name = (...) =>
             r"([\w\-\.]+)\s*=\s*(?:function|\([^)]*\)\s*=>)",
         ]
-        # Опасные функции для подсчета вызовов
+        # Dangerous functions tracked for call-count analysis
         self.danger_functions = ["eval", "exec", "os.system", "subprocess.run"]
 
     def _get_indent(self, line):
@@ -26,25 +26,23 @@ class IntelligenceEngine:
 
     def _quick_extract_name(self, line):
         """
-        Извлекает имя функции, класса или задачи из строки сигнатуры.
+        Extracts the function, class, or task name from a block signature line.
         """
         line = line.strip()
-        # Пробуем найти по регулярным выражениям из self.block_markers
         for pattern in self.block_markers:
             match = re.search(pattern, line)
             if match:
-                # Обычно имя — это вторая группа (после func/def) или первая (для name())
                 groups = match.groups()
                 if len(groups) >= 2:
                     return groups[1]
                 elif len(groups) == 1:
                     return groups[0]
 
-        # Если ничего не подошло, но есть скобки (Go/C style)
+        # Go/C style fallback: func keyword with parentheses
         if "(" in line and "func" in line:
             parts = line.split("(")
             name_part = parts[0].replace("func", "").strip()
-            if " " in name_part:  # Обработка ресиверов типа (t *Target) Name
+            if " " in name_part:  # Handle receivers like (t *Target) Name
                 return name_part.split()[-1]
             return name_part
 
@@ -66,16 +64,14 @@ class IntelligenceEngine:
         if target_idx >= len(lines):
             return "".join(lines[-20:]), "unknown"
 
-        # 1. Ищем начало блока (вверх от целевой строки)
+        # 1. Search for block start (upward from target line)
         start_idx = target_idx
         indent_level = self._get_indent(lines[target_idx])
 
-        # Идем вверх, пока не найдем строку с меньшим отступом или сигнатуру (func, def, и т.д.)
         for i in range(target_idx, -1, -1):
             line = lines[i].strip()
             if not line:
                 continue
-            # Универсальные маркеры начала блока
             if any(
                 re.match(m, line)
                 for m in [r"func\s+", r"def\s+", r"class\s+", r"type\s+\w+\s+struct"]
@@ -84,7 +80,6 @@ class IntelligenceEngine:
                 break
             if i < target_idx and self._get_indent(lines[i]) < indent_level:
                 stripped = lines[i].strip()
-                # Принимаем только реальные начала блоков, не просто меньший отступ
                 if any(
                     re.match(m, stripped)
                     for m in [r"def\s+", r"func\s+", r"class\s+", r"async\s+def\s+"]
@@ -92,8 +87,8 @@ class IntelligenceEngine:
                     start_idx = i
                     break
 
-        # 2. Ищем конец блока (баланс скобок или возврат отступа)
-        end_idx = min(target_idx + 50, len(lines))  # Лимит безопасности
+        # 2. Search for block end (brace balance or indent return)
+        end_idx = min(target_idx + 50, len(lines))
         brace_count = 0
         started_braces = False
 
@@ -102,7 +97,6 @@ class IntelligenceEngine:
             if "{" in lines[i]:
                 started_braces = True
 
-            # Если скобки закрылись или отступ вернулся к начальному (для Python)
             if started_braces and brace_count <= 0:
                 end_idx = i + 1
                 break
@@ -121,24 +115,19 @@ class IntelligenceEngine:
 
     def _resolve_path(self, path: str) -> str:
         """
-        Преобразует относительный путь в абсолютный относительно корня проекта.
+        Resolves a relative path to an absolute path relative to the project root.
         """
         import os
 
-        # Если путь уже абсолютный, возвращаем как есть
         if os.path.isabs(path):
             return path
 
-        # self.project_path должен быть определен в __init__
-        # Если его нет, используем текущую директорию
         base_path = getattr(self, "project_root", os.getcwd())
         return os.path.abspath(os.path.join(base_path, path))
 
     def get_semantic_slices(self, file_path, context_code):
-        """Находит в файле все строки, связанные с ключевыми объектами из контекста."""
+        """Finds all lines in a file related to key objects extracted from context."""
         full_path = self._resolve_path(file_path)
-        # Выделяем потенциальные объекты (переменные, мьютексы)
-        # Ищем слова типа t.mx, session, conn, input_data
         interesting_vars = set(re.findall(r"(\w+\.[\w\d_]+|[\w\d_]{3,})", context_code))
 
         slices = []
@@ -155,11 +144,11 @@ class IntelligenceEngine:
             logger.warning(f"IntelligenceEngine: Cannot read {full_path}: {e}")
             return ""
 
-        # Ограничиваем, чтобы не перегрузить LLM
+        # Limit output to avoid LLM context overflow
         return "\n".join(slices[:30])
 
     def analyze_deep_taint(self, context_code, sink_code):
-        """Proximity Taint-анализ с простыми цепочками и аргументами функции."""
+        """Proximity taint analysis with simple call chains and function argument tracking."""
         vars_in_sink = re.findall(r"\b([a-zA-Z_][\w\.]+)\b", sink_code)
         danger_markers = [
             r"input",
@@ -179,7 +168,7 @@ class IntelligenceEngine:
             if var in ["fmt", "Sprintf", "Exec", "os", "sys", "run"]:
                 continue
 
-            # Прямое определение переменной
+            # Direct variable definition match
             var_escaped = re.escape(var)
             def_match = re.search(
                 rf"\b{var_escaped}\b\s*[:=]+\s*(.*)", context_code, re.I
@@ -192,7 +181,7 @@ class IntelligenceEngine:
                     tainted.append(var)
                     taint_paths[var] = path_chain
 
-            # Проверка аргументов функции
+            # Function argument taint check
             first_line = context_code.split("\n")[0].lower()
             if re.search(rf"\b{var_escaped}\b", first_line) and any(
                 m in first_line for m in danger_markers
@@ -207,7 +196,6 @@ class IntelligenceEngine:
         if not finding:
             return {"reachability": "UNKNOWN", "reason": "Empty finding provided"}
 
-        # Поддержка и dict, и Pydantic/объектов
         if isinstance(finding, dict):
             file_path = finding.get("file_path", "")
             meta = finding.get("meta") or {}
@@ -228,7 +216,6 @@ class IntelligenceEngine:
             re.findall(r"\b(" + "|".join(self.danger_functions) + r")\b", context or "")
         )
 
-        # Обязательные ключи для безопасности
         res = {
             "reachability": "UNKNOWN",
             "taint_sources": sources,
@@ -246,28 +233,28 @@ class IntelligenceEngine:
             res.update(
                 {
                     "reachability": "STATIC_SAFE",
-                    "reason": "Тестовое окружение. Вредоносное влияние на продакшен невозможно.",
+                    "reason": "Test environment. No exploitable impact on production.",
                 }
             )
         elif is_config:
             res.update(
                 {
                     "reachability": "REACHABLE",
-                    "reason": "Критический файл конфигурации/пайплайна. Прямая угроза инфраструктуре.",
+                    "reason": "Critical configuration or pipeline file. Direct infrastructure exposure.",
                 }
             )
         elif taint_status == "TAINTED":
             res.update(
                 {
                     "reachability": "REACHABLE",
-                    "reason": f"Данные {sources} пробрасываются в опасный метод в блоке '{entity_name}'.",
+                    "reason": f"Data from {sources} flows into a dangerous method in block '{entity_name}'.",
                 }
             )
         elif entity_name and entity_name[0].isupper() and entity_name != "global_scope":
             res.update(
                 {
                     "reachability": "POTENTIALLY_REACHABLE",
-                    "reason": f"Объект '{entity_name}' публичен и доступен для внешнего вызова.",
+                    "reason": f"Entity '{entity_name}' is public and accessible via external call.",
                 }
             )
         else:
@@ -281,7 +268,7 @@ class IntelligenceEngine:
         return res
 
     def extract_smart_context(self, file_path: str, line_num: int, rule_id: str) -> str:
-        # Защита от path traversal
+        # Path traversal protection
         abs_path = os.path.realpath(os.path.join(self.project_root, file_path))
         abs_root = os.path.realpath(self.project_root)
         if not abs_path.startswith(abs_root + os.sep):
@@ -296,26 +283,20 @@ class IntelligenceEngine:
         except Exception as e:
             return f"Error reading file: {e}"
 
-        # 1. Базовый контекст вокруг найденной строки
+        # 1. Base context window around target line
         start_idx = max(0, line_num - 5)
         end_idx = min(len(lines), line_num + 15)
         base_context = "".join(lines[start_idx:end_idx])
 
-        # 2. Логика "Smart Tracing" для импортов
-        # Проверяем, является ли находка подозрительным импортом
+        # 2. Smart Tracing for import-related findings
         if "import" in rule_id.lower():
-            # Определяем, какой пакет искать (например, из 'text/template' берем 'template')
-            # Ищем строку импорта в базовом контексте
             match = re.search(
                 r"\"(.+?)\"", lines[line_num - 1] if line_num <= len(lines) else ""
             )
             if match:
                 package_full_name = match.group(1)
-                package_alias = package_full_name.split("/")[
-                    -1
-                ]  # 'template' из 'text/template'
+                package_alias = package_full_name.split("/")[-1]  # e.g. 'template' from 'text/template'
 
-                # Ищем использование этого пакета ниже по коду
                 usage_context = self._find_usage(lines, package_alias, line_num)
                 if usage_context:
                     return (
@@ -328,14 +309,12 @@ class IntelligenceEngine:
 
     def _find_usage(self, lines: list, package_name: str, start_from: int) -> str:
         """
-        Ищет первое вхождение package.Something после блока импортов.
+        Finds the first occurrence of package.Something after the imports block.
         """
-        # Начинаем поиск чуть дальше строки импорта, чтобы не найти саму себя
         pattern = re.compile(rf"{re.escape(package_name)}\.[A-Za-z]")
 
         for i in range(start_from, len(lines)):
             if pattern.search(lines[i]):
-                # Берем блок кода вокруг места использования
                 u_start = max(0, i - 5)
                 u_end = min(len(lines), i + 15)
                 return "".join(lines[u_start:u_end])

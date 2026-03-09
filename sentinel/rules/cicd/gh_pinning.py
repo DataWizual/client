@@ -57,7 +57,7 @@ class GithubActionPinningRule(BaseRule):
                     if "@" in action:
                         name, version = action.split("@", 1)
                         if not re.match(r"^[0-9a-f]{40}$", version):
-                            # FIX: ID в строке нарушения совпадает с self.id
+                            # FIX: ID in violation line matches self.id
                             violations.append(
                                 f"CICD-001: Unpinned action '{action}' in job '{job_id}' ({path}). "
                                 f"Current version: '{version}'. Required: 40-character SHA."

@@ -1,13 +1,3 @@
-"""
-Sentinel Core — Machine ID Utility
-DataWizual Security (c) 2026
-
-Запусти этот скрипт и отправь полученный ID на eldorzufarov66@gmail.com
-для получения License Key.
-
-Использование:
-    python3 get_id.py
-"""
 import hashlib
 import platform
 import subprocess
@@ -16,15 +6,10 @@ from pathlib import Path
 
 
 def get_machine_id() -> str:
-    """
-    Генерирует уникальный 32-символьный Machine ID.
-    Алгоритм идентичен auditor/security/guard.py — ключ будет совместим.
-    """
     identifiers = [platform.machine(), platform.system()]
 
     try:
         if platform.system() == "Windows":
-            # Используем PowerShell (wmic устарел)
             cmd = [
                 "powershell",
                 "-Command",
@@ -69,7 +54,7 @@ if __name__ == "__main__":
     print(f"  Machine ID: {machine_id}")
     print("=" * 50)
     print("")
-    print("  Отправьте этот ID на:")
+    print("  Send this ID to:")
     print("  eldorzufarov66@gmail.com")
-    print("  для получения License Key.")
+    print("  to receive your License Key.")
     print("")
