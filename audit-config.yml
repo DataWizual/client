@@ -40,6 +40,7 @@ detectors:
 ai:
   enabled: true
   provider: "google"
+  mode: "external"
   model: "gemini-2.5-flash"
   max_findings_per_scan: 15
   min_severity_for_ai: "HIGH"
