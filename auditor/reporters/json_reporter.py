@@ -47,21 +47,34 @@ class JSONReporter(BaseReporter):
 
             ai_map = {}
             if ai_recommendations:
+                import ast
+
+                def _parse_advice(advice):
+                    """Распаковывает advice в словарь если это строка."""
+                    if isinstance(advice, dict):
+                        return advice
+                    if isinstance(advice, str):
+                        try:
+                            parsed = ast.literal_eval(advice)
+                            if isinstance(parsed, dict):
+                                return parsed
+                        except Exception:
+                            pass
+                    return {"advice": str(advice), "type": "advisory"}
+
                 # Если пришел словарь {uuid: advice}
                 if isinstance(ai_recommendations, dict):
                     for fid, advice in ai_recommendations.items():
-                        ai_map[str(fid)] = {"advice": str(advice), "type": "advisory"}
+                        parsed = _parse_advice(advice)
+                        ai_map[str(fid)] = parsed
                 # Если пришел список [{"finding_id": "...", "advice": "..."}]
                 elif isinstance(ai_recommendations, list):
                     for r in ai_recommendations:
                         if isinstance(r, dict):
                             fid = str(r.get("finding_id") or r.get("id", ""))
-                            advice = r.get("advice")
-                            if fid and advice:
-                                ai_map[fid] = {
-                                    "advice": str(advice),
-                                    "type": r.get("type", "advisory"),
-                                }
+                            advice = r.get("advice") or r
+                            if fid:
+                                ai_map[fid] = _parse_advice(advice)
 
             for f in findings:
                 finding_dict = {
