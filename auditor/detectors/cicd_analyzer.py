@@ -64,14 +64,22 @@ class CicdAnalyzer(DetectorPlugin):
         except Exception:
             return []
 
+        # Жёсткие исключения — всегда независимо от конфига
+        hard_exclude_dirs = {"venv", ".venv", "env", "node_modules", ".git",
+                             "__pycache__", "dist", "build", "site-packages"}
+
         for root, dirs, files in os.walk(target_abs):
-            # Apply directory exclusions on the fly
+            # Применяем жёсткие исключения
+            dirs[:] = [d for d in dirs if d not in hard_exclude_dirs]
+
+            # Применяем пользовательские исключения из конфига
             if exclude:
                 dirs[:] = [
-                    d
-                    for d in dirs
+                    d for d in dirs
                     if not any(
-                        d == ex or str(Path(root) / d).endswith(ex) for ex in exclude
+                        d == ex.rstrip("/*") or
+                        str(Path(root) / d).endswith(ex.rstrip("/*"))
+                        for ex in exclude
                     )
                 ]
 

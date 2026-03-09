@@ -1,48 +1,26 @@
-# ============================================================
-# Sentinel Core — объединённые зависимости
-# Sentinel Gate + Auditor Core (встроенный движок)
-# ============================================================
+# Sentinel Core — Production Dependencies
+# Pinned for stability
 
-# --- CLI & Configuration ---
+# --- CLI & Config ---
 click==8.1.7
 pyyaml==6.0.1
-python-dotenv==1.0.0
+python-dotenv>=1.0.0
 
-# --- HTTP & Networking ---
+# --- HTTP & AI ---
 requests==2.31.0
 httpx>=0.26.0
+openai>=2.15.0
+groq>=1.0.0
 
-# --- Data Validation (Pydantic v2) ---
+# --- Data & Validation ---
 pydantic>=2.5.3
 pydantic-settings>=2.1.0
 
 # --- Security Analyzers ---
 bandit>=1.7.6
-semgrep>=1.54.0
-checkov>=3.1.0
-slither-analyzer>=0.10.0
-solc-select>=1.0.4
-cyclonedx-bom>=4.4.0
 
-# --- AI Advisory ---
-# Groq (опционально, если используется вместо Gemini)
-groq>=1.0.0
-# OpenAI совместимый клиент (используется engine.py для Sentinel AI)
-openai==2.15.0
-# google-generativeai нужен если используется Gemini напрямую
-# pip install google-generativeai  (добавь если нужен)
-
-# --- Reporting & Templates ---
+# --- Reporting & Utils ---
 jinja2>=3.1.3
-
-# --- System & Utilities ---
 python-magic>=0.4.27
 cryptography>=42.0.0
-
-# --- Database (Auditor Core — опционально) ---
-# Нужна только если используется история сканов
-# Закомментируй если БД не нужна в Sentinel режиме
-# sqlalchemy>=2.0.25
-# psycopg2-binary>=2.9.9
-# alembic>=1.13.0
-
+tqdm>=4.66.0
