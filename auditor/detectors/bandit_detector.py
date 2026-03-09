@@ -47,14 +47,22 @@ class BanditDetector(DetectorPlugin):
 
         cmd = ["bandit", "-r", safe_path, "-f", "json", "-q", "--aggregate", "file"]
 
-        if exclude:
-            if len(exclude) > 50:
-                logger.warning(
-                    "Bandit: Too many excludes, truncating to prevent OS argument limit error."
-                )
-                exclude = exclude[:50]
+        # Жёсткие исключения для bandit — всегда
+        hard_excludes = ["venv", ".venv", "env", "node_modules", ".git",
+                         "__pycache__", "dist", "build"]
 
-            cmd.extend(["-x", ",".join(exclude)])
+        # Берём только реальные директории из exclude списка конфига
+        config_dirs = []
+        if exclude:
+            for ex in exclude:
+                clean = ex.rstrip("/*")
+                candidate = Path(safe_path) / clean
+                if candidate.is_dir():
+                    config_dirs.append(str(candidate))
+
+        all_excludes = hard_excludes + config_dirs
+        if all_excludes:
+            cmd.extend(["-x", ",".join(all_excludes)])
 
         try:
             process = subprocess.run(
