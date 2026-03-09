@@ -1,278 +1,184 @@
-# 🛡 Sentinel Core — Deterministic Security Gate for CI/CD
+# 🛡️ Sentinel Core — Deterministic Security Enforcement System
 
-Sentinel Core is a **deterministic security enforcement engine** designed to operate as a **physical security gate** across both local development environments and CI/CD pipelines.
+**DataWizual Security Labs** · eldorzufarov66@gmail.com
 
-Unlike traditional scanners that only *report* risk, Sentinel enforces binary engineering invariants:
+---
+
+Sentinel Core is an enterprise-grade security enforcement system for development teams. It automatically inspects every commit and CI/CD pipeline for vulnerabilities, secret exposures, and unsafe configurations — and **blocks dangerous changes before they reach production**.
+
+At its core, Sentinel runs an embedded **Auditor Core** engine with AI-powered analysis via Google Gemini, which verifies threats and eliminates false positives.
 
 > **ALLOW or BLOCK — no ambiguity, no silent bypass.**
 
-Sentinel is built for organizations that require:
+---
 
-- Zero telemetry
-- Offline-first execution
-- Immutable enforcement logic
-- Centralized administrative control
-- Guaranteed pipeline blocking
+## What Sentinel Protects
+
+- **Secrets** — passwords, API keys, tokens hardcoded in source files
+- **CI/CD Configurations** — GitHub Actions, GitLab CI, Jenkinsfile
+- **Infrastructure** — Kubernetes, Terraform, Docker
+- **Python Source Code** — command injection, insecure cryptography, SQL injection
+- **Supply Chain** — unpinned dependencies, unsafe base images
 
 ---
 
-# 🚀 What Sentinel Protects
-
-Sentinel evaluates project security posture at the artifact level:
-
-- **Dockerfiles** → supply chain integrity (no `:latest`, unsafe bases)
-- **CI/CD workflows** → SHA pinning enforcement, secret exposure prevention
-- **Infrastructure as Code** → Kubernetes + Terraform posture rules
-- **Secrets** → hardcoded credential detection
-- **AI Advisory Layer (optional)** → remediation insights (never auto-allow)
-
----
-
-# ✅ Deterministic Enforcement Model
-
-Every Sentinel execution results in exactly one authoritative decision:
-
-| Decision | Meaning |
-|---------|---------|
-| **ALLOW (0)** | No blocking violations detected |
-| **BLOCK (1)** | Critical policy violation found — pipeline stops |
-
-> WARN states only exist through explicit audited overrides.
-
----
-
-# 🏢 Official Deployment Model (Admin Provisioning Only)
-
-Sentinel Core is deployed exclusively through a **single corporate bootstrap script**:
-
-> `start.sh`
-
-⚠️ Developers do not install Sentinel manually.
-
-⚠️ Tokens are never entered by engineers.
-
-⚠️ Activation is performed only by an authorized Security Administrator.
-
-This guarantees:
-
-- Centralized enforcement governance
-- Token secrecy
-- Deterministic rollout
-- Zero developer-side configuration
-
----
-
-# Phase 1 — Access Provisioning (Security Administrator)
-
-Sentinel operates under a strict **administrator-controlled credential model**.
-
-The Security Administrator must generate the following minimal-scope secrets.
-
----
-
-## Required GitHub Personal Access Tokens
-
-### 1. `SENTINEL_INSTALL_TOKEN`
-**Scope:** `contents:read`
-
-Used only for:
-
-- allowing CI runners and worker machines to pull Sentinel Core from the private Shield repository
-
-This token must never grant write access.
-
----
-
-### 2. `SENTINEL_ALERT_TOKEN`
-**Scope:** `issues:write`
-
-Used by Sentinel to:
-
-- open enforcement violation alerts
-- report blocked policies
-- maintain an immutable audit trail inside the Admin Shield repository
-
----
-
-## Optional Advisory Key (AI Layer)
-
-### 3. `SENTINEL_AI_KEY` *(optional)*
-
-Used only if AI remediation suggestions are enabled.
-
-> AI never influences enforcement decisions — it only enriches reports.
-
----
-
-# Phase 2 — Shield Initialization (Private Corporate Mirror)
-
-Sentinel enforcement must originate from a private organizational repository:
+## How It Works
 
 ```
-sentinel-core (Admin Shield)
-```
-
-This repository becomes the **single source of truth** for all enforcement logic.
-
----
-
-## Step 1 — Create the Shield Repository
-
-Inside your GitHub Organization, create a new **Private Repository**, for example:
-
-```
-sentinel-core
+Developer runs git commit
+        ↓
+Sentinel intercepts (pre-commit hook)
+        ↓
+Auditor Core scans changed files
+        ↓
+Gemini AI verifies and classifies threats
+        ↓
+ALLOW → commit proceeds
+BLOCK → commit rejected + alert created in GitHub Issues
 ```
 
 ---
 
-## Step 2 — Store Secrets in the Shield Repository
+## Step 1 — Obtain Your Machine ID
 
-Inside the Shield repo, the administrator must create the following GitHub Actions secrets:
-
-- `SENTINEL_INSTALL_TOKEN`
-- `SENTINEL_ALERT_TOKEN`
-- `SENTINEL_AI_KEY` *(if enabled)*
-
-These secrets allow:
-
-- controlled engine distribution
-- centralized violation reporting
-- optional AI advisory enrichment
-
----
-
-## Step 3 — Restrict Secret Exposure (Repository Access Control)
-
-When creating these secrets, GitHub must be configured under:
-
-```
-Repository access → Only select repositories
-```
-
-The administrator must explicitly allow access only to:
-
-- the Shield repository itself
-- authorized client/project repositories protected by Sentinel
-
-This prevents accidental organization-wide leakage of enforcement credentials.
-
----
-
-## Step 4 — Mirror Secrets into Protected Project Repositories
-
-Each client/project repository that will be protected by Sentinel must also contain the same secrets:
-
-- `SENTINEL_INSTALL_TOKEN`
-- `SENTINEL_ALERT_TOKEN`
-- `SENTINEL_AI_KEY` *(if applicable)*
-
-This ensures:
-
-- Sentinel workflows inside the project can authenticate correctly
-- project-level CI gates can report violations back into the Shield
-- both repositories remain cryptographically linked
-
----
-
-## Step 5 — Push Sentinel Engine into the Shield
-
-On a secure administrative machine:
+Before installation, each machine requires a unique License Key bound to its hardware.
+Run the following script on every machine where Sentinel will be deployed:
 
 ```bash
-git init
-
-git remote add origin https://github.com/YourOrg/sentinel-core.git
-git branch -M main
-
-git add .
-git commit -m "feat: initialize corporate Sentinel Shield"
-
-git push -u origin main
+python3 get_id.py
 ```
 
-Once complete, this repository becomes the authoritative enforcement source.
+Output:
+```
+==================================================
+  Sentinel Core — Machine ID
+==================================================
+  Machine ID: 81CE1239487E2EA172FF41BC4DD13BED
+==================================================
+
+  Send this ID to: eldorzufarov66@gmail.com
+  to receive your License Key.
+```
+
+Send the Machine ID by email. You will receive a **License Key** unique to that machine.
+
+> ⚠️ Each machine has its own key. A key issued for one machine will not work on another.
 
 ---
 
-# Phase 3 — Worker Machine Activation (Admin Provisioning via `start.sh`)
+## Step 2 — Prepare GitHub Tokens
 
-In Sentinel V2, project onboarding follows a strict **Hardware-Bound Licensing** workflow. 
-Activation is performed directly by an authorized administrator using the provisioning script.
+Sentinel requires two GitHub Personal Access Tokens. Create them at:
+
+`GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens`
+
+### SENTINEL_INSTALL_TOKEN
+Used to install the Sentinel package from the private repository.
+
+```
+Repository access: sentinel-core (your admin repo)
+Permissions:
+  Contents: Read-only ✓
+```
+
+### SENTINEL_ALERT_TOKEN
+Used to post enforcement alerts as GitHub Issues.
+
+```
+Repository access: your admin repository
+Permissions:
+  Issues: Read and write ✓
+```
 
 ---
 
-## Licensing Workflow (Pre-Activation)
+## Step 3 — Install via start.sh
 
-1. **Collect Machine ID**: Run the provided `get_id.py` script on the target machine.
-2. **Request License**: Send the **16-character Machine ID** to the provider (DataWizual Security).
-3. **Receive Key**: Obtain a unique **License Key** bound to that specific machine.
-
-## Worker Machine Prerequisites
-
-- **Python 3.10+** (Recommended for optimized engine performance)
-- **Git** (Required for hooks and repo synchronization)
-
----
-
-## One-Step Provisioning
-
-1. Admin copies `start.sh` into the root directory of the project to be protected.
-2. **Insert License Key**: Paste the unique key into the `SENTINEL_LICENSE_KEY` variable inside `start.sh`.
-3. Fill in required environment variables (tokens, repo location).
-4. Execute:
+Copy `start.sh` into the root of the project you want to protect and run:
 
 ```bash
-chmod +x start.sh
-./start.sh
+bash start.sh 2>&1 | tee install.log
 ```
 
-This operation automatically verifies the hardware license, installs the engine, and activates all security hooks and CI/CD workflows.
-
----
-
-## Deployment Complete
-
-After execution:
+The script guides you through all configuration steps interactively:
 
 ```
-✅ DEPLOYMENT COMPLETE: Project is now under Sentinel Shield.
+Type YES to accept terms and proceed: YES
+
+Enter Install Token (PAT with repo scope): <SENTINEL_INSTALL_TOKEN>
+Enter License Key:                         <your License Key>
+Enter Google Gemini API Key:               <AIza...>
+Enter Gemini Model [gemini-2.5-flash]:     [Enter to keep default]
+Enter GitHub Alert Token:                  <SENTINEL_ALERT_TOKEN>
+Enter Admin Repo [YourOrg/sentinel-core]:  <your/repo>
+Enter License Salt (AUDITOR_LICENSE_SALT): <provided by DataWizual>
 ```
 
-Sentinel is now active and cannot be bypassed.
-
----
-
-# 📄 Reports
-
-Every scan generates professional audit artifacts:
-
-- HTML Report
-- JSON Evidence
-- Markdown Summary
-
-Stored automatically in:
-
+Successful installation output:
 ```
-/reports/
-  sentinel_report_<timestamp>.html
-  sentinel_report_<timestamp>.json
-  sentinel_report_<timestamp>.md
+✅ License verified for Machine ID: 81CE1239487E2EA172FF41BC4DD13BED
+✅ sentinel.yaml initialized
+✅ GitHub Workflow initialized
+✅ Pre-commit hook installed
+------------------------------------------------------------
+✅ SENTINEL CORE DEPLOYED SUCCESSFULLY
+------------------------------------------------------------
 ```
 
 ---
 
-# 🧬 Policy Configuration
+## Step 4 — Verify the Installation
 
-Sentinel enforcement is governed by `sentinel.yaml`.
+After installation, run a test commit to confirm Sentinel is active:
 
-Example:
+```bash
+echo 'password = "admin123"' > test_vuln.py
+git add test_vuln.py
+git commit -m "test"
+```
+
+Expected result — commit is blocked:
+```
+🔍 Sentinel is verifying commit security...
+❌ Found 1 security violations!
+- [CRITICAL] SEC-001: Hardcoded Password in test_vuln.py at line 1.
+🚀 Remote Alert Sent Successfully!
+❌ Terminating: 1 CRITICAL threats found.
+```
+
+Clean up the test file:
+```bash
+rm test_vuln.py
+```
+
+---
+
+## Project Structure After Installation
+
+```
+your-project/
+├── start.sh                    ← provisioning script
+├── audit-config.yml            ← Auditor Core configuration
+├── sentinel.yaml               ← Sentinel enforcement rules
+├── .env                        ← credentials (never commit this file)
+├── .github/
+│   └── workflows/
+│       └── sentinel.yml        ← CI/CD pipeline protection
+├── reports/
+│   └── report_*.json           ← scan reports
+└── venv/                       ← Python virtual environment
+```
+
+---
+
+## Policy Configuration (sentinel.yaml)
 
 ```yaml
 severity:
-  SEC-001: BLOCK
-  SUPPLY-001: BLOCK
-  INFRA-001: BLOCK
+  SEC-001: BLOCK        # Hardcoded secrets
+  SUPPLY-001: BLOCK     # Supply chain integrity
+  INFRA-K8S-001: BLOCK  # Kubernetes misconfigurations
+  CICD-001: BLOCK       # CI/CD security issues
 
 overrides: []
 ignore:
@@ -280,41 +186,80 @@ ignore:
   - node_modules/*
 ```
 
-Overrides require justification:
+To temporarily allow a specific violation with a documented justification:
 
 ```yaml
 overrides:
   - rule_id: SUPPLY-001
-    justification: "Legacy base image required for compatibility"
+    justification: "Legacy base image required for compatibility — reviewed by security team"
 ```
 
 ---
 
-# 🏢 Administrative Monitoring
+## Enforcement Alerts
 
-All violations are automatically reported into the corporate Shield repository:
+Every violation automatically creates an Issue in your admin repository:
 
-- GitHub Issues become the centralized threat feed
-- Sentinel never reports externally beyond the authorized admin perimeter
+```
+Target Admin Repo: YourOrg/sentinel-core
+Status: 🔴 BLOCK
+Environment: 💻 Local Development
+Machine: worker-pc-01
+Triggered by: developer_username
+```
 
----
-
-# ✅ Security Checklist (Admin Before Deployment)
-
-- [ ] PATs generated with minimal scopes
-- [ ] Secrets stored in Shield repo
-- [ ] Repository access restricted to selected repos
-- [ ] Secrets mirrored into protected project repos
-- [ ] Worker machine provisioned only via `start.sh`
-- [ ] `start.sh` securely deleted after provisioning
+The administrator has full visibility into all incidents. Developers have no access to the enforcement dashboard.
 
 ---
 
-# ✅ Sentinel Core — Scope & Responsibility
+## Requirements
 
-Sentinel Core is a deterministic CI/CD security enforcement gate designed to detect and block unsafe actions before they reach production. It helps teams identify policy violations, exposed secrets, insecure supply-chain changes, and deployment configuration risks early in the pipeline lifecycle. Sentinel enforces binary decisions (ALLOW/BLOCK) to prevent risky artifacts from progressing toward release. Sentinel reduces operational risk but does not guarantee breach prevention. Final responsibility for overrides, remediation, and security outcomes remains with the deploying organization. Full terms are defined in TERMS_OF_USE.md.
+| Component | Version |
+|-----------|---------|
+| Python | 3.10+ |
+| Git | any |
+| OS | Linux / macOS / Windows |
+| Gemini API Key | optional (enables AI analysis) |
+
+Optional external tools for extended scanning coverage:
+
+- `gitleaks` — secret scanning across git history
+- `semgrep` — advanced multi-language SAST analysis
+- `bandit` — installed automatically with Sentinel
 
 ---
 
-© 2026 DataWizual Security — Sentinel Shield System
+## Frequently Asked Questions
 
+**Q: Can a developer bypass Sentinel?**
+A: A developer can run `git commit --no-verify` locally. However, the CI/CD pipeline will catch the push, block it, and send an alert to the administrator with the developer's identity.
+
+**Q: Does Sentinel slow down commits?**
+A: Basic scanning takes 2–5 seconds. With Gemini AI analysis enabled — 15–30 seconds depending on project size.
+
+**Q: What happens if the Gemini API is unavailable?**
+A: Sentinel continues operating without AI enrichment. All core enforcement rules (SEC-001, SUPPLY-001, etc.) run fully offline at all times.
+
+**Q: How do I update Sentinel on a machine?**
+A: Run `start.sh` again. It will update the package while preserving the existing `.env` configuration.
+
+**Q: Is developer activity logged?**
+A: Yes. Every blocked commit is recorded as a GitHub Issue with machine identity, username, timestamp, and violation details — creating an immutable audit trail.
+
+---
+
+## Support
+
+For installation, licensing, and configuration assistance:
+
+📧 **eldorzufarov66@gmail.com**
+
+Please include in your message:
+- Machine ID (from `python3 get_id.py`)
+- Description of the issue
+- OS version and Python version
+
+---
+
+© 2026 DataWizual Security Labs. All rights reserved.
+Use of this software is governed by `TERMS_OF_USE.md`.
