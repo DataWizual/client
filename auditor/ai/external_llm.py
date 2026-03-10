@@ -5,7 +5,7 @@ import json
 import requests
 import logging
 import tempfile
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from auditor.ai.rule_based import RuleBasedAdvisor
 from auditor.intelligence_lab.intelligence_engine import IntelligenceEngine
 
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ExternalLLMAdvisor:
     def __init__(self, ai_config: Dict[str, Any]):
+        # --- Primary provider: Google Gemini ---
         self.api_key = os.getenv("GOOGLE_API_KEY")
         raw_model = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
 
@@ -32,7 +33,18 @@ class ExternalLLMAdvisor:
             f"{self.model}:generateContent?key={self.api_key}"
         )
 
-        logger.info(f"AI Engine: Using model {self.model}")
+        # --- Fallback provider: Groq ---
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.groq_url = "https://api.groq.com/openai/v1/chat/completions"
+        self._gemini_quota_exceeded = False  # flip to True on daily quota error
+
+        if self.groq_api_key:
+            logger.info(f"AI Engine: Groq fallback available ({self.groq_model})")
+        else:
+            logger.info("AI Engine: Groq fallback not configured (GROQ_API_KEY missing)")
+
+        logger.info(f"AI Engine: Primary model {self.model}")
 
         self.timeout = ai_config.get("timeout_sec", 300)
         self.fallback = RuleBasedAdvisor()
@@ -48,7 +60,53 @@ class ExternalLLMAdvisor:
         logger.info(f"AI run artifacts stored in: {_run_dir}")
         logger.info(f"⚙️ Expert Engine initialized (Model: {self.model})")
 
-    def ask_ai(self, prompt_or_payload):
+    # ------------------------------------------------------------------
+    # Groq call (OpenAI-compatible)
+    # ------------------------------------------------------------------
+    def _ask_groq(self, system_prompt: str, user_content: str) -> Optional[str]:
+        """Calls Groq API as fallback when Gemini quota is exceeded."""
+        if not self.groq_api_key:
+            return None
+
+        headers = {
+            "Authorization": f"Bearer {self.groq_api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.groq_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 8192,
+        }
+
+        for attempt in range(3):
+            try:
+                response = requests.post(
+                    self.groq_url, headers=headers, json=payload, timeout=90
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+                elif response.status_code == 429:
+                    wait = 30 * (attempt + 1)
+                    logger.warning(f"Groq rate limit, sleeping {wait}s...")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"Groq API error {response.status_code}: {response.text[:200]}")
+                    return None
+            except Exception as e:
+                logger.error(f"Groq connection error: {e}")
+                time.sleep(10)
+
+        return None
+
+    # ------------------------------------------------------------------
+    # Gemini call
+    # ------------------------------------------------------------------
+    def ask_ai(self, prompt_or_payload) -> Optional[str]:
         is_dict = isinstance(prompt_or_payload, dict)
         payload = (
             prompt_or_payload
@@ -80,7 +138,7 @@ class ExternalLLMAdvisor:
 
                 elif response.status_code == 400:
                     logger.error(f"❌ API 400 Error: {response.text}")
-                    return None  # No point retrying a bad request
+                    return None
 
                 elif response.status_code == 429:
                     error_body = response.json()
@@ -88,9 +146,11 @@ class ExternalLLMAdvisor:
 
                     if "quota" in error_msg.lower() or "day" in error_msg.lower():
                         logger.error(
-                            f"❌ Daily quota exceeded. Try tomorrow or switch model. ({error_msg})"
+                            f"❌ Gemini daily quota exceeded. Switching to Groq fallback. ({error_msg})"
                         )
-                        return None
+                        self._gemini_quota_exceeded = True
+                        return None  # caller will use Groq
+
                     wait = 60 * (attempt + 1)
                     logger.warning(
                         f"Rate limit hit, sleeping {wait}s (attempt {attempt+1}/5)..."
@@ -182,11 +242,23 @@ class ExternalLLMAdvisor:
 
         for idx, chunk_list in enumerate(evidence_chunks):
             full_evidence_chunk = "\n".join(chunk_list)
-            payload = self._build_payload(super_strict_instruction, full_evidence_chunk)
 
             logger.info(f"📡 Processing {idx+1}/{len(evidence_chunks)}...")
 
-            ai_content = self.ask_ai(payload)
+            ai_content = None
+
+            # Use Groq if Gemini quota already exceeded this session
+            if self._gemini_quota_exceeded and self.groq_api_key:
+                logger.info(f"🔄 Using Groq fallback for chunk {idx+1}...")
+                ai_content = self._ask_groq(super_strict_instruction, full_evidence_chunk)
+            else:
+                payload = self._build_payload(super_strict_instruction, full_evidence_chunk)
+                ai_content = self.ask_ai(payload)
+
+                # ask_ai sets _gemini_quota_exceeded=True on quota error — retry with Groq
+                if ai_content is None and self._gemini_quota_exceeded and self.groq_api_key:
+                    logger.info(f"🔄 Gemini quota hit, retrying chunk {idx+1} with Groq...")
+                    ai_content = self._ask_groq(super_strict_instruction, full_evidence_chunk)
 
             if ai_content:
                 try:
@@ -198,7 +270,7 @@ class ExternalLLMAdvisor:
                 parsed_chunk = self._parse_ai_response(ai_content)
                 all_advice.extend(parsed_chunk)
             else:
-                logger.error(f"❌ Chunk {idx+1} failed to get response from AI.")
+                logger.error(f"❌ Chunk {idx+1} failed on all providers.")
 
             if idx < len(evidence_chunks) - 1:
                 time.sleep(20)

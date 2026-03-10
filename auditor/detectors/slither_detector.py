@@ -75,16 +75,23 @@ class SlitherDetector(DetectorPlugin):
                 # Default ignore patterns for dependency noise
                 cmd.extend(["--filter-paths", "node_modules|lib|tests|migrations"])
 
+                HARD_EXCLUDE_DIRS = {
+                    "venv", ".venv", "node_modules", ".git", "__pycache__",
+                    "dist", "build", "site-packages", "testdata", "fixtures",
+                    "mocks", "reports",
+                }
                 if exclude:
-                    if len(exclude) > 50:
-                        logger.warning(
-                            "Slither: Too many excludes, truncating to prevent Arg List Too Long"
+                    filtered = [
+                        e for e in exclude
+                        if Path(e).name not in HARD_EXCLUDE_DIRS
+                    ]
+                    # Cap at 20 to stay well within OS argument limits
+                    filtered = filtered[:20]
+                    if filtered:
+                        clean_excludes = ",".join(
+                            [str(Path(e).as_posix()) for e in filtered]
                         )
-                        exclude = exclude[:50]
-                    clean_excludes = ",".join(
-                        [str(Path(e).as_posix()) for e in exclude]
-                    )
-                    cmd.extend(["--exclude-dir", clean_excludes])
+                        cmd.extend(["--exclude-dir", clean_excludes])
 
                 # Run process without shell=True (prevents command injection)
                 subprocess.run(

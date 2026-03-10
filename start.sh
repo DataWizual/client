@@ -119,9 +119,6 @@ SENTINEL_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
 SENTINEL_ALERT_TOKEN=YOUR_GITHUB_TOKEN_HERE
 SENTINEL_ADMIN_REPO=DataWizual/sentinel-core-v2_1
 
-# --- License Salt (set during deployment) ---
-AUDITOR_LICENSE_SALT=YOUR_SALT_HERE
-
 # --- AI Advisory (Google Gemini) ---
 GOOGLE_API_KEY=YOUR_GEMINI_API_KEY_HERE
 GOOGLE_MODEL=gemini-2.5-flash
@@ -244,9 +241,6 @@ if [ ! -f ".env" ]; then
     read -p "  Enter Admin Repo [DataWizual/sentinel-core-v2_1]: " admin_repo
     admin_repo=${admin_repo:-DataWizual/sentinel-core-v2_1}
 
-    read -s -p "  Enter License Salt (AUDITOR_LICENSE_SALT): " license_salt
-    echo ""
-
     python3 - << PYEOF
 content = open('.env').read()
 replacements = {
@@ -257,7 +251,6 @@ replacements = {
     'YOUR_GITHUB_TOKEN_HERE': '${alert_token}',
     'YourOrg/sentinel-core': '${admin_repo}',
     'DataWizual/sentinel-core': '${admin_repo}',
-    'YOUR_SALT_HERE': '${license_salt}',
 }
 for old, new in replacements.items():
     content = content.replace(old, new)
@@ -309,7 +302,7 @@ fi
 # =================================================================
 # CLEANUP
 # =================================================================
-unset install_token gemini_key alert_token license_salt
+unset install_token gemini_key alert_token
 history -c 2>/dev/null || true
 
 # =================================================================

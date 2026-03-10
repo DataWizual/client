@@ -67,18 +67,18 @@ class AuditorGuard:
         raw_id = "|".join(identifiers).encode()
         return hashlib.sha256(raw_id).hexdigest()[:32].upper()
 
+    # ── Internal salt — never expose to clients ──────────────────────────────
+    _INTERNAL_SALT = "A8#kL2!pZ97_qrXvW-mN5@bYt4*QeR9"
+
     def verify_license(self, license_key: str, machine_id: str) -> bool:
         """
-        Validates license key against machine ID using env-supplied salt.
+        Validates license key against machine ID using hardcoded internal salt.
         Uses constant-time comparison to prevent timing attacks.
         """
         if not license_key or not machine_id:
             return False
 
-        internal_salt = os.environ.get("AUDITOR_LICENSE_SALT")
-        if not internal_salt:
-            logger.error("Guard: AUDITOR_LICENSE_SALT environment variable not set.")
-            return False
+        internal_salt = self._INTERNAL_SALT
 
         expected_key = (
             hashlib.sha256(f"{machine_id}:{internal_salt}".encode())

@@ -87,6 +87,15 @@ class CicdAnalyzer(DetectorPlugin):
                 full_path = Path(root) / file
 
                 # Check file size before processing to prevent DoS
+                MEDIA_EXTENSIONS = {
+                    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.ico',
+                    '.mp4', '.mov', '.avi', '.mkv', '.webm',
+                    '.mp3', '.wav', '.ogg',
+                    '.pdf', '.zip', '.tar', '.gz', '.whl', '.exe', '.bin',
+                }
+                if full_path.suffix.lower() in MEDIA_EXTENSIONS:
+                    continue
+
                 try:
                     if full_path.stat().st_size > MAX_CICD_FILE_SIZE:
                         logger.warning(

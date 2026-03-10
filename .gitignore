@@ -62,3 +62,5 @@ sentinel_ORG/
 setup.py_bak
 setup.py_encrypt
 auditor/auditor/
+
+build_cython.py
