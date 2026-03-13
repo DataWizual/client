@@ -1,48 +1,72 @@
-# 🛡️ Sentinel Core — Deterministic Security Enforcement System
+<div align="center">
 
-**DataWizual Security Labs** · eldorzufarov66@gmail.com
+# 🛡️ Sentinel Core v2.1
+
+**Real-Time Security Enforcement Gate for Development Teams**
+
+[![License](https://img.shields.io/badge/license-Commercial-red.svg)](TERMS_OF_USE.md)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
+[![Status](https://img.shields.io/badge/status-Production%20Ready-brightgreen.svg)]()
+
+*ALLOW or BLOCK — no ambiguity, no silent bypass.*
+
+**[🌐 Website](https://datawizual.github.io) · [📧 Get License](mailto:eldorzufarov66@gmail.com)**
 
 ---
 
-Sentinel Core is an enterprise-grade security enforcement system for development teams. It automatically inspects every commit and CI/CD pipeline for vulnerabilities, secret exposures, and unsafe configurations — and **blocks dangerous changes before they reach production**.
+### Installation Demo
+![Sentinel Core Installation](demo_1.gif)
 
-At its core, Sentinel runs an embedded **Auditor Core** engine with AI-powered analysis via Google Gemini, which verifies threats and eliminates false positives.
+### Security Gate in Action
+![Sentinel Core Block](demo_2.gif)
 
-> **ALLOW or BLOCK — no ambiguity, no silent bypass.**
+</div>
+
+---
+
+## What Is Sentinel Core?
+
+Sentinel Core is an enterprise-grade security enforcement system that **intercepts every git commit** before it reaches your codebase. It runs an embedded [Auditor Core](https://datawizual.github.io) engine with AI-powered analysis via Gemini 2.5 Flash — verifying threats and eliminating false positives in real time.
+
+Every violation is **blocked immediately** and creates an alert in your admin repository. Developers have no way to silently bypass enforcement.
 
 ---
 
 ## What Sentinel Protects
 
-- **Secrets** — passwords, API keys, tokens hardcoded in source files
-- **CI/CD Configurations** — GitHub Actions, GitLab CI, Jenkinsfile
-- **Infrastructure** — Kubernetes, Terraform, Docker
-- **Python Source Code** — command injection, insecure cryptography, SQL injection
-- **Supply Chain** — unpinned dependencies, unsafe base images
+| Category | Details |
+|---|---|
+| 🔑 **Secrets** | Passwords, API keys, tokens hardcoded in source files |
+| ⚙️ **CI/CD Configurations** | GitHub Actions, GitLab CI, Jenkinsfile |
+| 🏗️ **Infrastructure** | Kubernetes, Terraform, Docker misconfigurations |
+| 🐍 **Python Source Code** | Injection, insecure cryptography, SQL injection |
+| 📦 **Supply Chain** | Unpinned dependencies, unsafe base images |
 
 ---
 
 ## How It Works
 
 ```
-Developer runs git commit
+Developer runs: git commit
         ↓
-Sentinel intercepts (pre-commit hook)
+Sentinel intercepts via pre-commit hook
         ↓
-Auditor Core scans changed files
+Auditor Core scans changed files (10 detection engines)
         ↓
 Gemini AI verifies and classifies threats
         ↓
-ALLOW → commit proceeds
-BLOCK → commit rejected + alert created in GitHub Issues
+ALLOW → commit proceeds normally
+BLOCK → commit rejected + alert fired to admin GitHub Issues
 ```
 
 ---
 
-## Step 1 — Obtain Your Machine ID
+## Installation
 
-Before installation, each machine requires a unique License Key bound to its hardware.
-Run the following script on every machine where Sentinel will be deployed:
+### Step 1 — Get Your Machine ID
+
+Each machine requires a hardware-bound License Key. Run on every machine to be protected:
 
 ```bash
 python3 get_id.py
@@ -55,66 +79,47 @@ Output:
 ==================================================
   Machine ID: 81CE1239487E2EA172FF41BC4DD13BED
 ==================================================
-
   Send this ID to: eldorzufarov66@gmail.com
-  to receive your License Key.
 ```
 
-Send the Machine ID by email. You will receive a **License Key** unique to that machine.
+Send the Machine ID to **eldorzufarov66@gmail.com** — you will receive a License Key unique to that machine.
 
-> ⚠️ Each machine has its own key. A key issued for one machine will not work on another.
+> ⚠️ A key issued for one machine will not work on another.
 
----
+### Step 2 — Prepare GitHub Tokens
 
-## Step 2 — Prepare GitHub Tokens
+Create two Personal Access Tokens at `GitHub → Settings → Developer settings → Fine-grained tokens`:
 
-Sentinel requires two GitHub Personal Access Tokens. Create them at:
-
-`GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens`
-
-### SENTINEL_INSTALL_TOKEN
-Used to install the Sentinel package from the private repository.
-
+**SENTINEL_INSTALL_TOKEN** — installs Sentinel from the private repository
 ```
-Repository access: sentinel-core (your admin repo)
-Permissions:
-  Contents: Read-only ✓
+Repository: sentinel-core
+Permissions: Contents → Read-only
 ```
 
-### SENTINEL_ALERT_TOKEN
-Used to post enforcement alerts as GitHub Issues.
-
+**SENTINEL_ALERT_TOKEN** — posts enforcement alerts as GitHub Issues
 ```
-Repository access: your admin repository
-Permissions:
-  Issues: Read and write ✓
+Repository: your admin repository
+Permissions: Issues → Read and write
 ```
 
----
+### Step 3 — Install via start.sh
 
-## Step 3 — Install via start.sh
-
-Copy `start.sh` into the root of the project you want to protect and run:
+Copy `start.sh` into the root of the project you want to protect:
 
 ```bash
-bash start.sh 2>&1 | tee install.log
+bash start.sh
 ```
 
-The script guides you through all configuration steps interactively:
+The script handles everything automatically:
+- Accepts Terms of Use
+- Installs Sentinel from the private GitHub repository
+- Configures `.env` with your credentials
+- Initializes hardware-bound license
+- Creates `sentinel.yaml` enforcement policy
+- Sets up GitHub Actions workflow
+- Installs pre-commit hook
 
-```
-Type YES to accept terms and proceed: YES
-
-Enter Install Token (PAT with repo scope): <SENTINEL_INSTALL_TOKEN>
-Enter License Key:                         <your License Key>
-Enter Google Gemini API Key:               <AIza...>
-Enter Gemini Model [gemini-2.5-flash]:     [Enter to keep default]
-Enter GitHub Alert Token:                  <SENTINEL_ALERT_TOKEN>
-Enter Admin Repo [YourOrg/sentinel-core]:  <your/repo>
-Enter License Salt (AUDITOR_LICENSE_SALT): <provided by DataWizual>
-```
-
-Successful installation output:
+Successful output:
 ```
 ✅ License verified for Machine ID: 81CE1239487E2EA172FF41BC4DD13BED
 ✅ sentinel.yaml initialized
@@ -125,11 +130,9 @@ Successful installation output:
 ------------------------------------------------------------
 ```
 
----
+### Step 4 — Verify
 
-## Step 4 — Verify the Installation
-
-After installation, run a test commit to confirm Sentinel is active:
+Test the enforcement gate immediately after installation:
 
 ```bash
 echo 'password = "admin123"' > test_vuln.py
@@ -137,7 +140,7 @@ git add test_vuln.py
 git commit -m "test"
 ```
 
-Expected result — commit is blocked:
+Expected result:
 ```
 🔍 Sentinel is verifying commit security...
 ❌ Found 1 security violations!
@@ -146,32 +149,16 @@ Expected result — commit is blocked:
 ❌ Terminating: 1 CRITICAL threats found.
 ```
 
-Clean up the test file:
+Clean up:
 ```bash
 rm test_vuln.py
 ```
 
 ---
 
-## Project Structure After Installation
+## Policy Configuration
 
-```
-your-project/
-├── start.sh                    ← provisioning script
-├── audit-config.yml            ← Auditor Core configuration
-├── sentinel.yaml               ← Sentinel enforcement rules
-├── .env                        ← credentials (never commit this file)
-├── .github/
-│   └── workflows/
-│       └── sentinel.yml        ← CI/CD pipeline protection
-├── reports/
-│   └── report_*.json           ← scan reports
-└── venv/                       ← Python virtual environment
-```
-
----
-
-## Policy Configuration (sentinel.yaml)
+All enforcement rules are defined in `sentinel.yaml`:
 
 ```yaml
 severity:
@@ -186,80 +173,96 @@ ignore:
   - node_modules/*
 ```
 
-To temporarily allow a specific violation with a documented justification:
+To temporarily allow a violation with documented justification:
 
 ```yaml
 overrides:
   - rule_id: SUPPLY-001
-    justification: "Legacy base image required for compatibility — reviewed by security team"
+    justification: "Legacy base image — reviewed by security team"
 ```
 
 ---
 
 ## Enforcement Alerts
 
-Every violation automatically creates an Issue in your admin repository:
+Every blocked commit automatically creates a GitHub Issue in your admin repository:
 
 ```
-Target Admin Repo: YourOrg/sentinel-core
-Status: 🔴 BLOCK
+🔴 BLOCK — SEC-001: Hardcoded Password
 Environment: 💻 Local Development
 Machine: worker-pc-01
 Triggered by: developer_username
+Timestamp: 2026-03-13 14:22:01
 ```
 
-The administrator has full visibility into all incidents. Developers have no access to the enforcement dashboard.
+Administrators have full visibility. Developers have no access to the enforcement dashboard.
+
+---
+
+## Project Structure After Installation
+
+```
+your-project/
+├── start.sh                    ← provisioning script
+├── audit-config.yml            ← Auditor Core configuration
+├── sentinel.yaml               ← enforcement policy
+├── .env                        ← credentials (never commit)
+├── .github/
+│   └── workflows/
+│       └── sentinel.yml        ← CI/CD pipeline protection
+├── reports/
+│   └── report_*.json           ← scan reports
+└── venv/                       ← Python virtual environment
+```
 
 ---
 
 ## Requirements
 
 | Component | Version |
-|-----------|---------|
+|---|---|
 | Python | 3.10+ |
 | Git | any |
 | OS | Linux / macOS / Windows |
-| Gemini API Key | optional (enables AI analysis) |
-
-Optional external tools for extended scanning coverage:
-
-- `gitleaks` — secret scanning across git history
-- `semgrep` — advanced multi-language SAST analysis
-- `bandit` — installed automatically with Sentinel
+| Gemini API | Optional (AI analysis) |
+| Groq API | Optional (Gemini fallback) |
 
 ---
 
-## Frequently Asked Questions
+## FAQ
 
-**Q: Can a developer bypass Sentinel?**
-A: A developer can run `git commit --no-verify` locally. However, the CI/CD pipeline will catch the push, block it, and send an alert to the administrator with the developer's identity.
+**Can a developer bypass Sentinel?**
+A developer can run `git commit --no-verify` locally. However, the CI/CD pipeline will catch the push, block it, and alert the administrator with the developer's identity and machine ID.
 
-**Q: Does Sentinel slow down commits?**
-A: Basic scanning takes 2–5 seconds. With Gemini AI analysis enabled — 15–30 seconds depending on project size.
+**Does Sentinel slow down commits?**
+Basic scanning takes 2–5 seconds. With Gemini AI enabled — 15–30 seconds depending on project size.
 
-**Q: What happens if the Gemini API is unavailable?**
-A: Sentinel continues operating without AI enrichment. All core enforcement rules (SEC-001, SUPPLY-001, etc.) run fully offline at all times.
+**What if Gemini API quota is exceeded?**
+Sentinel automatically switches to Groq (llama-3.3-70b-versatile) as fallback. Zero interruption to enforcement.
 
-**Q: How do I update Sentinel on a machine?**
-A: Run `start.sh` again. It will update the package while preserving the existing `.env` configuration.
+**How do I update Sentinel?**
+Run `start.sh` again. It updates the package while preserving your existing `.env` configuration.
 
-**Q: Is developer activity logged?**
-A: Yes. Every blocked commit is recorded as a GitHub Issue with machine identity, username, timestamp, and violation details — creating an immutable audit trail.
+**Is developer activity logged?**
+Yes. Every blocked commit is recorded as a GitHub Issue with machine identity, username, timestamp, and violation details — creating an immutable audit trail.
+
+**How is Sentinel different from Auditor Core?**
+Sentinel is a real-time gate — it intercepts every commit automatically. [Auditor Core](https://datawizual.github.io) is a deep on-demand audit engine for comprehensive posture reports. Sentinel uses Auditor Core internally as its scanning engine.
 
 ---
 
 ## Support
 
-For installation, licensing, and configuration assistance:
-
 📧 **eldorzufarov66@gmail.com**
 
-Please include in your message:
-- Machine ID (from `python3 get_id.py`)
-- Description of the issue
-- OS version and Python version
+Please include: Machine ID · OS version · Python version · description of the issue.
 
 ---
 
+<div align="center">
+
 © 2026 DataWizual Security Labs. All rights reserved.
-Use of this software is governed by `TERMS_OF_USE.md`.
+
+Use governed by [TERMS_OF_USE.md](TERMS_OF_USE.md)
+
+</div>
