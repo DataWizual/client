@@ -5,7 +5,7 @@ import json
 import requests
 import logging
 import tempfile
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from auditor.ai.rule_based import RuleBasedAdvisor
 from auditor.intelligence_lab.intelligence_engine import IntelligenceEngine
 
@@ -14,14 +14,19 @@ logger = logging.getLogger(__name__)
 
 class ExternalLLMAdvisor:
     def __init__(self, ai_config: Dict[str, Any]):
-        # --- Primary provider: Google Gemini ---
         self.api_key = os.getenv("GOOGLE_API_KEY")
         raw_model = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
 
-        if not self.api_key:
+        # Groq fallback config
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.groq_url = "https://api.groq.com/openai/v1/chat/completions"
+        self._gemini_quota_exceeded = False
+
+        if not self.api_key and not self.groq_api_key:
             raise ValueError(
-                "GOOGLE_API_KEY is not set. "
-                "Ensure the variable is exported in the environment before starting the auditor."
+                "Neither GOOGLE_API_KEY nor GROQ_API_KEY is set. "
+                "At least one AI provider must be configured."
             )
 
         # Strip 'models/' prefix if present in model name
@@ -33,18 +38,9 @@ class ExternalLLMAdvisor:
             f"{self.model}:generateContent?key={self.api_key}"
         )
 
-        # --- Fallback provider: Groq ---
-        self.groq_api_key = os.getenv("GROQ_API_KEY")
-        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-        self.groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        self._gemini_quota_exceeded = False  # flip to True on daily quota error
-
+        logger.info(f"AI Engine: Primary model {self.model}")
         if self.groq_api_key:
             logger.info(f"AI Engine: Groq fallback available ({self.groq_model})")
-        else:
-            logger.info("AI Engine: Groq fallback not configured (GROQ_API_KEY missing)")
-
-        logger.info(f"AI Engine: Primary model {self.model}")
 
         self.timeout = ai_config.get("timeout_sec", 300)
         self.fallback = RuleBasedAdvisor()
@@ -60,53 +56,7 @@ class ExternalLLMAdvisor:
         logger.info(f"AI run artifacts stored in: {_run_dir}")
         logger.info(f"⚙️ Expert Engine initialized (Model: {self.model})")
 
-    # ------------------------------------------------------------------
-    # Groq call (OpenAI-compatible)
-    # ------------------------------------------------------------------
-    def _ask_groq(self, system_prompt: str, user_content: str) -> Optional[str]:
-        """Calls Groq API as fallback when Gemini quota is exceeded."""
-        if not self.groq_api_key:
-            return None
-
-        headers = {
-            "Authorization": f"Bearer {self.groq_api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.groq_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 8192,
-        }
-
-        for attempt in range(3):
-            try:
-                response = requests.post(
-                    self.groq_url, headers=headers, json=payload, timeout=90
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return data["choices"][0]["message"]["content"]
-                elif response.status_code == 429:
-                    wait = 30 * (attempt + 1)
-                    logger.warning(f"Groq rate limit, sleeping {wait}s...")
-                    time.sleep(wait)
-                else:
-                    logger.error(f"Groq API error {response.status_code}: {response.text[:200]}")
-                    return None
-            except Exception as e:
-                logger.error(f"Groq connection error: {e}")
-                time.sleep(10)
-
-        return None
-
-    # ------------------------------------------------------------------
-    # Gemini call
-    # ------------------------------------------------------------------
-    def ask_ai(self, prompt_or_payload) -> Optional[str]:
+    def ask_ai(self, prompt_or_payload):
         is_dict = isinstance(prompt_or_payload, dict)
         payload = (
             prompt_or_payload
@@ -138,19 +88,18 @@ class ExternalLLMAdvisor:
 
                 elif response.status_code == 400:
                     logger.error(f"❌ API 400 Error: {response.text}")
-                    return None
+                    return None  # No point retrying a bad request
 
                 elif response.status_code == 429:
                     error_body = response.json()
                     error_msg = error_body.get("error", {}).get("message", "")
 
                     if "quota" in error_msg.lower() or "day" in error_msg.lower():
-                        logger.error(
-                            f"❌ Gemini daily quota exceeded. Switching to Groq fallback. ({error_msg})"
+                        logger.warning(
+                            f"⚠️ Gemini daily quota exceeded — switching to Groq fallback."
                         )
                         self._gemini_quota_exceeded = True
-                        return None  # caller will use Groq
-
+                        return None
                     wait = 60 * (attempt + 1)
                     logger.warning(
                         f"Rate limit hit, sleeping {wait}s (attempt {attempt+1}/5)..."
@@ -169,6 +118,37 @@ class ExternalLLMAdvisor:
                 time.sleep(10)
 
         return None
+
+    def _ask_groq(self, system_prompt: str, user_content: str) -> str | None:
+        """Groq fallback — OpenAI-compatible API."""
+        if not self.groq_api_key:
+            return None
+        try:
+            response = requests.post(
+                self.groq_url,
+                headers={
+                    "Authorization": f"Bearer {self.groq_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.groq_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content},
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 8192,
+                },
+                timeout=90,
+            )
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            else:
+                logger.error(f"❌ Groq error {response.status_code}: {response.text[:200]}")
+                return None
+        except Exception as e:
+            logger.error(f"💥 Groq connection error: {e}")
+            return None
 
     def generate_recommendations(self, findings: List[Any], **kwargs) -> List[Dict]:
         if not self.api_key or not findings:
@@ -242,23 +222,22 @@ class ExternalLLMAdvisor:
 
         for idx, chunk_list in enumerate(evidence_chunks):
             full_evidence_chunk = "\n".join(chunk_list)
+            payload = self._build_payload(super_strict_instruction, full_evidence_chunk)
 
             logger.info(f"📡 Processing {idx+1}/{len(evidence_chunks)}...")
 
+            # Gemini first, Groq fallback on quota exceeded
             ai_content = None
-
-            # Use Groq if Gemini quota already exceeded this session
             if self._gemini_quota_exceeded and self.groq_api_key:
-                logger.info(f"🔄 Using Groq fallback for chunk {idx+1}...")
+                logger.info("🔄 AI Engine: Using Groq fallback (Gemini quota exceeded)")
                 ai_content = self._ask_groq(super_strict_instruction, full_evidence_chunk)
-            else:
-                payload = self._build_payload(super_strict_instruction, full_evidence_chunk)
+            elif self.api_key:
                 ai_content = self.ask_ai(payload)
-
-                # ask_ai sets _gemini_quota_exceeded=True on quota error — retry with Groq
                 if ai_content is None and self._gemini_quota_exceeded and self.groq_api_key:
-                    logger.info(f"🔄 Gemini quota hit, retrying chunk {idx+1} with Groq...")
+                    logger.info("🔄 AI Engine: Gemini quota hit — switching to Groq")
                     ai_content = self._ask_groq(super_strict_instruction, full_evidence_chunk)
+            elif self.groq_api_key:
+                ai_content = self._ask_groq(super_strict_instruction, full_evidence_chunk)
 
             if ai_content:
                 try:
@@ -270,7 +249,7 @@ class ExternalLLMAdvisor:
                 parsed_chunk = self._parse_ai_response(ai_content)
                 all_advice.extend(parsed_chunk)
             else:
-                logger.error(f"❌ Chunk {idx+1} failed on all providers.")
+                logger.error(f"❌ Chunk {idx+1} failed to get response from AI.")
 
             if idx < len(evidence_chunks) - 1:
                 time.sleep(20)

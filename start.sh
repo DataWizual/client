@@ -280,6 +280,11 @@ AUDITOR_LICENSE_KEY="${license_key:-$AUDITOR_LICENSE_KEY}" \
 # =================================================================
 # STEP 9 — PRE-COMMIT HOOK (With full path to sentinel)
 # =================================================================
+if [ ! -d ".git" ]; then
+    info "No git repository found — initializing..."
+    git init && ok "Git repository initialized"
+fi
+
 if [ -d ".git" ]; then
     info "Installing pre-commit security hook..."
 
