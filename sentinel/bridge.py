@@ -57,7 +57,9 @@ class AuditorBridge:
         """
         self.auto_run = auto_run
         self.auditor_config = auditor_config or {}
-        self.license_key = license_key or os.getenv("AUDITOR_LICENSE_KEY", "")
+        _key = license_key or os.getenv("SENTINEL_LICENSE_KEY") or os.getenv("AUDITOR_LICENSE_KEY")
+        # Fall back to TRIAL if no license configured
+        self.license_key = _key if _key else "TRIAL"
         self.report_path = report_path or self._find_latest_report()
 
     def _find_latest_report(self) -> Optional[str]:
