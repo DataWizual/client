@@ -1,6 +1,6 @@
 #!/bin/bash
 # =================================================================
-# SENTINEL CORE — UNIFIED PROVISIONING SCRIPT
+# SENTINEL CORE DEMO — PROVISIONING SCRIPT
 # DataWizual Security (c) 2026
 # =================================================================
 
@@ -23,7 +23,7 @@ fail() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 # =================================================================
 echo ""
 echo -e "${BOLD}------------------------------------------------------------"
-echo "🛡️  DATAWIZUAL SECURITY — SENTINEL CORE INSTALLATION"
+echo "🛡️  DATAWIZUAL SECURITY — SENTINEL CORE DEMO"
 echo "------------------------------------------------------------${NC}"
 echo "This installation is subject to the Terms of Use"
 echo "defined in TERMS_OF_USE.md."
@@ -55,202 +55,62 @@ if [ ! -d "venv" ]; then
 fi
 source venv/bin/activate
 SENTINEL_BIN="$(pwd)/venv/bin/sentinel"
-info "Installing/updating dependencies..."
+info "Installing dependencies..."
 pip install -q --upgrade pip
 ok "pip updated"
 
 # =================================================================
-# STEP 4 — INSTALL SENTINEL FROM GITHUB (Before Machine ID — sentinel needed)
+# STEP 4 — INSTALL SENTINEL FROM LOCAL SOURCE
+# =================================================================
+info "Installing Sentinel Core..."
+pip install -q -e . && ok "Sentinel Core installed"
+
+# =================================================================
+# STEP 5 — MACHINE ID
 # =================================================================
 echo ""
-info "Installing Sentinel Core from GitHub..."
-
-read -p "  Enter Install Token (PAT with repo scope): " install_token
-if [ -n "$install_token" ]; then
-    REPO="DataWizual/sentinel-core-v2_1"
-    pip install -q \
-        git+https://x-access-token:${install_token}@github.com/${REPO}.git@main \
-        && ok "Sentinel installed from GitHub" \
-        || warn "GitHub install failed — using local version"
-    unset install_token
-else
-    info "No install token — installing from local source..."
-    pip install -q -e . && ok "Installed from local source"
-fi
-
-# =================================================================
-# STEP 5 — COPY CONFIG FILES FROM INSTALLED PACKAGE
-# =================================================================
-info "Copying configuration files from package..."
-
-PKG_DIR=$(python3 -c "
-import importlib.util, os
-spec = importlib.util.find_spec('sentinel')
-if spec:
-    print(os.path.dirname(os.path.dirname(spec.origin)))
-" 2>/dev/null || echo "")
-
-# Downloading config files directly from GitHub (more reliable than site-packages)
-RAW_URL="https://raw.githubusercontent.com/DataWizual/sentinel-core-v2_1/main"
-
-download_if_missing() {
-    local filename="$1"
-    if [ ! -f "$filename" ]; then
-        curl -fsSL "${RAW_URL}/${filename}" -o "$filename" 2>/dev/null && ok "$filename downloaded" || warn "$filename: download failed"
-    else
-        ok "$filename already exists"
-    fi
-}
-
-# .env.example embedded in start.sh — independent of network or package
-if [ ! -f ".env.example" ]; then
-    cat > .env.example << 'ENVEOF'
-# ============================================================
-# Sentinel Core — Environment Configuration
-# Copy to .env and fill with your values:
-#   cp .env.example .env
-# ============================================================
-
-# --- Licensing ---
-# Get Machine ID: python3 get_id.py
-# Send to eldorzufarov66@gmail.com to receive your key
-AUDITOR_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
-SENTINEL_LICENSE_KEY=YOUR_LICENSE_KEY_HERE
-SENTINEL_ALERT_TOKEN=YOUR_GITHUB_TOKEN_HERE
-SENTINEL_ADMIN_REPO=DataWizual/sentinel-core-v2_1
-
-# --- AI Advisory (Google Gemini) ---
-GOOGLE_API_KEY=YOUR_GEMINI_API_KEY_HERE
-GOOGLE_MODEL=gemini-2.5-flash
-
-# --- AI Advisory (Groq — optional) ---
-GROQ_API_KEY=YOUR_GROQ_API_KEY_HERE
-GROQ_MODEL=llama-3.3-70b-versatile
-
-# --- Scanner Limits ---
-MAX_FINDINGS=5000
-MAX_FILE_SIZE=1048576
-
-# --- Logging ---
-LOG_LEVEL=INFO
-ENVEOF
-    ok ".env.example created"
-fi
-
-# audit-config.yml — embedded configuration
-if [ ! -f "audit-config.yml" ]; then
-    cat > audit-config.yml << 'CFGEOF'
-# Auditor Core — Internal configuration for Sentinel operations
-scanner:
-  offline_mode: false
-  baseline_file: "baseline.json"
-  max_file_size_kb: 500
-  exclude_patterns:
-    - "*.min.js"
-    - "*.lock"
-    - "*.pyc"
-    - "*.whl"
-    - "*.so"
-    - "*.pack"
-    - "node_modules/*"
-    - "venv/*"
-    - ".venv/*"
-    - ".git/*"
-    - "__pycache__/*"
-    - "dist/*"
-    - "build/*"
-    - "reports/*"
-    - "site-packages/*"
-
-detectors:
-  bandit_detector: true
-  semgrep_detector: true
-  gitleaks_detector: true
-  secret_detector: true
-  dependency_scanner: true
-  iac_scanner: true
-  cicd_analyzer: true
-  sast_scanner: true
-  slither_detector: false
-  license_scanner: false
-
-ai:
-  enabled: true
-  mode: "external"
-  provider: "google"
-  model: "gemini-2.5-flash"
-  max_findings_per_scan: 15
-  min_severity_for_ai: "LOW"
-  batch_size: 3
-  sleep_between_batches: 20
-
-reporting:
-  output_dir: "reports"
-
-policy:
-  fail_on_severity: "HIGH"
-  min_severity_for_ai: "LOW"
-CFGEOF
-    ok "audit-config.yml created"
-fi
-
-# =================================================================
-# STEP 6 — MACHINE ID (Sentinel is now installed)
-# =================================================================
-echo ""
-info "Detecting Machine ID for license binding..."
+info "Detecting Machine ID..."
 MACHINE_ID=$(python3 -c "
-import os
-os.environ.setdefault('AUDITOR_LICENSE_SALT', 'placeholder')
 try:
     from auditor.security.guard import AuditorGuard
     print(AuditorGuard().get_machine_id())
 except Exception:
     print('UNKNOWN')
 " 2>/dev/null || echo "UNKNOWN")
+
 echo ""
 echo -e "${BOLD}  Your Machine ID: ${YELLOW}${MACHINE_ID}${NC}"
 echo ""
-echo "  Send this ID to DataWizual Security to receive your License Key."
-echo "  Contact: eldorzufarov66@gmail.com"
-echo ""
 
 # =================================================================
-# STEP 7 — ENVIRONMENT CONFIGURATION (.env)
+# STEP 6 — LICENSE KEY (optional for trial)
+# =================================================================
+echo -e "${YELLOW}📋 License Key Setup${NC}"
+echo "You have 3 free trial runs without a license key."
+echo "To get a full license: eldorzufarov66@gmail.com"
+echo ""
+read -p "  Enter License Key (press Enter to use trial mode): " license_key
+
+# =================================================================
+# STEP 7 — ENVIRONMENT CONFIGURATION
 # =================================================================
 if [ ! -f ".env" ]; then
-    info "Configuring environment..."
-    [ ! -f ".env.example" ] && fail ".env.example not found."
     cp .env.example .env
 
+    read -s -p "  Enter GitHub Alert Token (press Enter to skip): " alert_token
     echo ""
-    read -p "  Enter License Key: " license_key
-    [ -z "$license_key" ] && fail "License Key is required."
-
-    read -s -p "  Enter Google Gemini API Key: " gemini_key
+    read -p "  Enter Admin Repo [your-org/your-repo]: " admin_repo
+    admin_repo=${admin_repo:-your-org/your-repo}
+    read -s -p "  Enter Google Gemini API Key (press Enter to skip): " gemini_key
     echo ""
-    [ -z "$gemini_key" ] && warn "Gemini API Key not set. AI analysis will be disabled."
-
-    read -p "  Enter Gemini Model [gemini-2.5-flash]: " gemini_model
-    gemini_model=${gemini_model:-gemini-2.5-flash}
-
-    read -s -p "  Enter GitHub Alert Token: " alert_token
-    echo ""
-    [ -z "$alert_token" ] && warn "GitHub Alert Token not set. Remote reporting disabled."
-
-    read -p "  Enter Admin Repo [DataWizual/sentinel-core-v2_1]: " admin_repo
-    admin_repo=${admin_repo:-DataWizual/sentinel-core-v2_1}
 
     python3 - << PYEOF
 content = open('.env').read()
 replacements = {
     'YOUR_LICENSE_KEY_HERE': '${license_key}',
-    'YOUR_GEMINI_API_KEY_HERE': '${gemini_key}',
-    '<KEY>': '${gemini_key}',
-    'gemini-2.5-flash': '${gemini_model}',
     'YOUR_GITHUB_TOKEN_HERE': '${alert_token}',
-    'YourOrg/sentinel-core': '${admin_repo}',
     'DataWizual/sentinel-core': '${admin_repo}',
+    'YOUR_GEMINI_API_KEY_HERE': '${gemini_key}',
 }
 for old, new in replacements.items():
     content = content.replace(old, new)
@@ -259,37 +119,34 @@ PYEOF
 
     chmod 600 .env
     ok ".env configured"
-else
-    ok ".env already exists — skipping configuration"
 fi
 
 # =================================================================
-# STEP 8 — SENTINEL INIT
+# STEP 8 — SENTINEL INIT (skip if trial mode)
 # =================================================================
-info "Initializing Sentinel..."
-source .env 2>/dev/null || true
-
-SENTINEL_LICENSE_KEY="${license_key:-$SENTINEL_LICENSE_KEY}" \
-AUDITOR_LICENSE_KEY="${license_key:-$AUDITOR_LICENSE_KEY}" \
-"$SENTINEL_BIN" init \
-    --token "${alert_token:-$SENTINEL_ALERT_TOKEN}" \
-    --repo "${admin_repo:-$SENTINEL_ADMIN_REPO}" \
-    && ok "Sentinel initialized" \
-    || fail "Sentinel initialization failed. Check your License Key."
+if [ -n "$license_key" ]; then
+    info "Initializing Sentinel with license..."
+    source .env 2>/dev/null || true
+    SENTINEL_LICENSE_KEY="$license_key" \
+    AUDITOR_LICENSE_KEY="$license_key" \
+    "$SENTINEL_BIN" init \
+        --token "${alert_token:-$SENTINEL_ALERT_TOKEN}" \
+        --repo "${admin_repo:-$SENTINEL_ADMIN_REPO}" \
+        && ok "Sentinel initialized" \
+        || warn "Init failed — running in trial mode"
+else
+    echo -e "${YELLOW}⚠️  No license key — trial mode active (3 free runs).${NC}"
+fi
 
 # =================================================================
-# STEP 9 — PRE-COMMIT HOOK (With full path to sentinel)
+# STEP 9 — PRE-COMMIT HOOK
 # =================================================================
 if [ ! -d ".git" ]; then
-    info "No git repository found — initializing..."
-    git init && ok "Git repository initialized"
-fi
-
-if [ -d ".git" ]; then
+    info "No git repository found — skipping pre-commit hook"
+    info "To install hook later: run start.sh inside a git repository"
+else
     info "Installing pre-commit security hook..."
-
-    # Remove old hooks to avoid conflicts
-    rm -f .git/hooks/pre-commit .git/hooks/pre-commit.legacy
+    rm -f .git/hooks/pre-commit
 
     cat > .git/hooks/pre-commit << HOOKEOF
 #!/bin/bash
@@ -300,25 +157,25 @@ HOOKEOF
 
     chmod +x .git/hooks/pre-commit
     ok "Pre-commit hook installed"
-else
-    warn "Not a git repository — pre-commit hook skipped"
 fi
-
-# =================================================================
-# CLEANUP
-# =================================================================
-unset install_token gemini_key alert_token
-history -c 2>/dev/null || true
 
 # =================================================================
 # DONE
 # =================================================================
+unset gemini_key alert_token license_key
+history -c 2>/dev/null || true
+
 echo ""
 echo -e "${BOLD}${GREEN}------------------------------------------------------------"
-echo "✅ SENTINEL CORE DEPLOYED SUCCESSFULLY"
+echo "✅ SENTINEL CORE DEMO READY"
 echo "------------------------------------------------------------${NC}"
 echo ""
 echo -e "  Run security scan:  ${YELLOW}${SENTINEL_BIN} scan .${NC}"
 echo -e "  Run with report:    ${YELLOW}${SENTINEL_BIN} scan . --report${NC}"
 echo -e "  View Machine ID:    ${YELLOW}${SENTINEL_BIN} --id${NC}"
 echo ""
+echo -e "${YELLOW}💡 To activate venv in a new terminal: source venv/bin/activate${NC}"
+echo ""
+
+# Keep venv active in current shell
+exec bash --rcfile <(echo "source $(pwd)/venv/bin/activate; echo -e '${GREEN}✅ Sentinel Core venv active${NC}'")

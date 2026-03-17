@@ -81,6 +81,22 @@ def scan(path, report, audit):
     Performs a high-authority security scan on the specified path.
     Sentinel V2 + Auditor Core AI-powered verification.
     """
+    # --- Trial check ---
+    license_key = os.getenv("SENTINEL_LICENSE_KEY") or os.getenv("AUDITOR_LICENSE_KEY")
+    if not license_key:
+        guard = AuditorGuard()
+        allowed, remaining = guard.check_trial()
+        if allowed:
+            click.secho(f"\033[0;33m⚠️  Trial mode: {remaining} free run(s) remaining after this.\033[0m")
+            click.secho("\033[0;33m   To get a full license: eldorzufarov66@gmail.com\033[0m\n")
+            # Disable AI in trial mode
+            os.environ["GOOGLE_API_KEY"] = ""
+        else:
+            click.secho("\n\033[0;31m🛑 Trial limit reached (3 free runs used).\033[0m")
+            click.secho(f"   Get your license key: eldorzufarov66@gmail.com")
+            click.secho(f"   Your Machine ID: {AuditorGuard().get_machine_id()}\n")
+            sys.exit(1)
+
     try:
         alert_token, authorized_repo = _verify_authorization()
         os.environ["SENTINEL_ALERT_TOKEN"] = alert_token
