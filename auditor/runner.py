@@ -93,9 +93,13 @@ class AuditorRunner:
         Returns:
             Path to the generated JSON report or None on error
         """
-        if not self.guard.verify_license(self.license_key, self.guard.get_machine_id()):
+        if self.license_key != "TRIAL" and not self.guard.verify_license(self.license_key, self.guard.get_machine_id()):
             logger.error("🛑 AuditorRunner: License verification failed.")
             return None
+
+        # Disable AI in trial mode
+        if self.license_key == "TRIAL":
+            self.ai_config = {**self.ai_config, "enabled": False}
 
         target = Path(target_path).absolute()
         self.config["project_root"] = str(target)
