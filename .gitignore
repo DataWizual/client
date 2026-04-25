@@ -65,3 +65,4 @@ auditor-demo2.cast
 demo_script.sh
 
 *.c
+*.so
