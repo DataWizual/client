@@ -1,0 +1,42 @@
+# --- Core Engine & Database Layer ---
+# High-performance ORM and drivers for PostgreSQL
+sqlalchemy>=2.0.25
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.0
+alembic>=1.13.0          # Database migration management
+
+# --- Configuration & Validation (Pydantic v2) ---
+# Hardened data schemas and settings management
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
+pyyaml>=6.0.1
+
+# --- Security Analyzers (Static Analysis Engines) ---
+# Deterministic security scanning suite
+bandit>=1.7.6            # Python source security
+semgrep>=1.54.0          # Multi-language pattern matching
+checkov>=3.1.0           # Infrastructure as Code (IaC) security
+slither-analyzer>=0.10.0 # Solidity smart contract auditor
+solc-select>=1.0.4       # Solidity compiler version manager
+cyclonedx-bom>=4.4.0     # Software Bill of Materials (SBOM) generation
+
+# --- AI & Advanced Analytics ---
+# Groq SDK for ultra-fast Llama 3.3 remediation advice
+groq>=1.0.0              
+pandas>=2.1.0            # High-level data manipulation for complex clusters
+
+# --- Web, API & Reporting ---
+# Backend services and document generation
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+requests>=2.31.0         # HTTP client for Gemini/Groq API calls (external_llm.py)
+httpx>=0.26.0            # Async HTTP client for external AI providers
+jinja2>=3.1.3            # Template engine for HTML reports
+reportlab>=4.0.0          # PDF executive summary generation (SOC 2 / insurance)
+
+# --- System, Utilities & Security ---
+# CLI framework and low-level system tools
+click>=8.1.7             # CLI interface
+python-magic>=0.4.27     # MIME-type identification for File Intake
+cryptography>=42.0.0     # Licensing and integrity hashing
+cython>=3.2.4

@@ -1,0 +1,67 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+dist/
+*.egg-info/
+
+# === Virtual Environment ===
+venv/
+env/
+.env
+
+# === Database ===
+*.db
+*.sqlite
+auditor_pro.db
+
+# === Scan Results & Reports ===
+report-*.json
+report-*.pdf
+report-*.html
+reports/
+*.html
+
+# === Logs ===
+*.log
+
+# === IDE & OS ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# === User Data & Secrets (CRITICAL) ===
+.cicd-auditor/
+license.json
+*.license
+*.key
+*.pem
+
+# === Temporary files ===
+tmp/
+temp/
+
+keygen.py
+README_v1.md
+README_v2.md
+*.zip
+.pyarmor/
+deploy_repo/
+
+# Ignore local test contracts
+*.sol
+contacts/
+auditor_ORG
+audit_local
+audit_docker
+run_test.py
+*.txt
+!requirements.txt
+build_cython.py
+auditor-demo2.cast
+demo_script.sh
+
+*.c

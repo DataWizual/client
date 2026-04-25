@@ -1,0 +1,722 @@
+rules:
+
+  # ============================================================
+  # CATEGORY: ENV VAR INJECTION
+  # Taint sources: os.getenv, process.env, ${{ secrets.* }}
+  # These feed directly into ChainAnalyzer for chain detection.
+  # rule_id prefix: ENV_INJECT_ (triggers chain rules)
+  # ============================================================
+
+  - id: python-getenv-into-shell
+    languages: [python]
+    severity: ERROR
+    message: >
+      ENV_INJECT_SHELL: Value from os.getenv() flows into a shell execution sink.
+      An attacker who controls the environment variable can achieve command injection.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: ENV_INJECT_SHELL
+    patterns:
+      - pattern: subprocess.run(..., $CMD, ..., shell=True, ...)
+      - pattern-either:
+          - pattern: |
+              $CMD = os.getenv(...)
+              ...
+              subprocess.run(..., $CMD, ..., shell=True, ...)
+          - pattern: |
+              $CMD = os.environ[...]
+              ...
+              subprocess.run(..., $CMD, ..., shell=True, ...)
+          - pattern: |
+              $CMD = os.environ.get(...)
+              ...
+              subprocess.run(..., $CMD, ..., shell=True, ...)
+
+  - id: python-getenv-into-sql
+    languages: [python]
+    severity: ERROR
+    message: >
+      ENV_INJECT_SQL: Value from os.getenv() flows into a SQL execute() call via
+      string concatenation. Use parameterised queries instead.
+    metadata:
+      cwe: CWE-89
+      owasp: A03:2021
+      rule_id: ENV_INJECT_SQL
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR = os.getenv(...)
+              ...
+              $CUR.execute($VAR + ...)
+          - pattern: |
+              $VAR = os.getenv(...)
+              ...
+              $CUR.execute(... + $VAR)
+          - pattern: |
+              $VAR = os.environ[...]
+              ...
+              $CUR.execute($VAR + ...)
+          - pattern: |
+              $VAR = os.environ.get(...)
+              ...
+              $CUR.execute(... + $VAR)
+
+  - id: python-getenv-into-eval
+    languages: [python]
+    severity: ERROR
+    message: >
+      ENV_INJECT_EVAL: Value from os.getenv() passed to eval() or exec().
+      Environment variables must never reach dynamic code execution.
+    metadata:
+      cwe: CWE-95
+      owasp: A03:2021
+      rule_id: ENV_INJECT_EVAL
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR = os.getenv(...)
+              ...
+              eval($VAR)
+          - pattern: |
+              $VAR = os.getenv(...)
+              ...
+              exec($VAR)
+          - pattern: eval(os.getenv(...))
+          - pattern: exec(os.getenv(...))
+          - pattern: eval(os.environ[...])
+          - pattern: exec(os.environ[...])
+
+  - id: python-getenv-into-open
+    languages: [python]
+    severity: WARNING
+    message: >
+      ENV_INJECT_PATH: Value from os.getenv() used as a file path without
+      sanitisation. May allow path traversal if the variable is attacker-influenced.
+    metadata:
+      cwe: CWE-22
+      owasp: A01:2021
+      rule_id: ENV_INJECT_PATH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR = os.getenv(...)
+              ...
+              open($VAR, ...)
+          - pattern: |
+              $VAR = os.environ[...]
+              ...
+              open($VAR, ...)
+
+  - id: js-process-env-into-shell
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      ENV_INJECT_SHELL: process.env value flows into a shell execution sink
+      (exec, execSync, spawn with shell:true). An attacker who controls the
+      environment can achieve command injection.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: ENV_INJECT_SHELL
+    pattern-either:
+      - pattern: require('child_process').exec(process.env.$VAR)
+      - pattern: require('child_process').exec(`...${process.env.$VAR}...`)
+      - pattern: require('child_process').execSync(process.env.$VAR)
+      - pattern: require('child_process').execSync(`...${process.env.$VAR}...`)
+      - pattern: child_process.exec(process.env.$VAR)
+      - pattern: child_process.exec(`...${process.env.$VAR}...`)
+      - pattern: |
+          $CMD = process.env.$VAR
+          ...
+          $EXEC($CMD, ...)
+
+  - id: js-process-env-into-sql
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      ENV_INJECT_SQL: process.env value used in SQL query string via concatenation
+      or template literal. Use parameterised queries.
+    metadata:
+      cwe: CWE-89
+      owasp: A03:2021
+      rule_id: ENV_INJECT_SQL
+    pattern-either:
+      - pattern: $DB.query(`...${process.env.$VAR}...`)
+      - pattern: $DB.query("..." + process.env.$VAR + "...")
+      - pattern: $DB.execute(`...${process.env.$VAR}...`)
+
+  - id: js-process-env-into-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      ENV_INJECT_EVAL: process.env value passed to eval(). Environment variables
+      must never reach dynamic code execution sinks.
+    metadata:
+      cwe: CWE-95
+      owasp: A03:2021
+      rule_id: ENV_INJECT_EVAL
+    pattern-either:
+      - pattern: eval(process.env.$VAR)
+      - pattern: eval(`...${process.env.$VAR}...`)
+      - pattern: new Function(process.env.$VAR)
+
+  - id: gha-secrets-in-env-block
+    languages: [yaml]
+    severity: ERROR
+    message: >
+      ENV_INJECT_GHA: GitHub Actions secret or untrusted context injected via env:
+      block and potentially reachable by subsequent run: steps. Validate or avoid
+      using untrusted contexts as environment variable values.
+    metadata:
+      cwe: CWE-77
+      owasp: A03:2021
+      rule_id: ENV_INJECT_GHA
+    pattern-either:
+      - pattern: |
+          env:
+            $KEY: ${{github.event.pull_request.title}}
+      - pattern: |
+          env:
+            $KEY: ${{github.event.pull_request.body}}
+      - pattern: |
+          env:
+            $KEY: ${{github.event.issue.title}}
+      - pattern: |
+          env:
+            $KEY: ${{github.event.issue.body}}
+      - pattern: |
+          env:
+            $KEY: ${{github.event.comment.body}}
+      - pattern: |
+          env:
+            $KEY: ${{github.head_ref}}
+      - pattern: |
+          env:
+            $KEY: ${{github.actor}}
+
+  - id: gha-workflow-dispatch-injection
+    languages: [yaml]
+    severity: ERROR
+    message: >
+      ENV_INJECT_GHA_DISPATCH: workflow_dispatch input used directly in run: step
+      without sanitisation. Workflow inputs are user-controlled and can contain
+      shell metacharacters.
+    metadata:
+      cwe: CWE-77
+      owasp: A03:2021
+      rule_id: ENV_INJECT_GHA_DISPATCH
+    pattern: |
+      run: ${{github.event.inputs.$INPUT}}
+
+  # ============================================================
+  # CATEGORY: COMMAND INJECTION
+  # rule_id prefix: COMMAND_INJECTION (triggers existing chain rules)
+  # ============================================================
+
+  - id: python-shell-true
+    languages: [python]
+    severity: ERROR
+    message: >
+      COMMAND_INJECTION: subprocess called with shell=True and a non-literal
+      command string. If any part of the command is user- or env-controlled,
+      this is a direct command injection vector.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: COMMAND_INJECTION
+    patterns:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+      - pattern-not: subprocess.$FUNC([...], shell=True, ...)
+
+  - id: python-os-system
+    languages: [python]
+    severity: ERROR
+    message: >
+      COMMAND_INJECTION: os.system() executes a shell command. Prefer subprocess
+      with a list argument and shell=False to eliminate injection risk.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: COMMAND_INJECTION
+    pattern: os.system($CMD)
+
+  - id: python-eval-exec
+    languages: [python]
+    severity: ERROR
+    message: >
+      COMMAND_INJECTION: eval() / exec() with a non-literal argument.
+      Dynamic code execution is a critical injection risk.
+    metadata:
+      cwe: CWE-95
+      owasp: A03:2021
+      rule_id: COMMAND_INJECTION
+    pattern-either:
+      - patterns:
+          - pattern: eval($X)
+          - pattern-not: eval("...")
+      - patterns:
+          - pattern: exec($X)
+          - pattern-not: exec("...")
+
+  - id: js-child-process-exec
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      COMMAND_INJECTION: child_process.exec() passes the command to the shell.
+      If any part is externally controlled, this is command injection.
+      Use execFile() or spawn() with an argument array instead.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: COMMAND_INJECTION
+    pattern-either:
+      - pattern: require('child_process').exec($CMD, ...)
+      - pattern: child_process.exec($CMD, ...)
+      - pattern: exec($CMD, ...)
+
+  - id: go-exec-shell
+    languages: [go]
+    severity: ERROR
+    message: >
+      COMMAND_INJECTION: exec.Command("sh", "-c", ...) or exec.Command("bash", "-c", ...)
+      with a non-literal argument is a shell injection risk.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: COMMAND_INJECTION
+    pattern-either:
+      - pattern: exec.Command("sh", "-c", $CMD)
+      - pattern: exec.Command("bash", "-c", $CMD)
+      - pattern: exec.Command("/bin/sh", "-c", $CMD)
+
+  - id: java-runtime-exec
+    languages: [java]
+    severity: ERROR
+    message: >
+      COMMAND_INJECTION: Runtime.getRuntime().exec() with a string argument.
+      Concatenated strings allow shell injection. Use ProcessBuilder with a
+      list of arguments instead.
+    metadata:
+      cwe: CWE-78
+      owasp: A03:2021
+      rule_id: COMMAND_INJECTION
+    pattern: Runtime.getRuntime().exec($CMD)
+
+  # ============================================================
+  # CATEGORY: SQL INJECTION
+  # rule_id prefix: SQL_INJECTION
+  # ============================================================
+
+  - id: python-sql-fstring
+    languages: [python]
+    severity: ERROR
+    message: >
+      SQL_INJECTION: f-string or %-format used to build a SQL query string passed
+      to execute(). Use parameterised queries with placeholders (%s / ?) instead.
+    metadata:
+      cwe: CWE-89
+      owasp: A03:2021
+      rule_id: SQL_INJECTION
+    pattern-either:
+      - pattern: $CUR.execute(f"...")
+      - pattern: $CUR.execute("..." % ...)
+      - pattern: $CUR.execute("..." + $VAR)
+      - pattern: $CUR.execute($VAR + "...")
+
+  - id: js-sql-template-literal
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      SQL_INJECTION: Template literal used directly in a SQL query call.
+      Use parameterised queries with placeholders instead.
+    metadata:
+      cwe: CWE-89
+      owasp: A03:2021
+      rule_id: SQL_INJECTION
+    pattern-either:
+      - pattern: $DB.query(`SELECT ... ${$VAR} ...`)
+      - pattern: $DB.query(`INSERT ... ${$VAR} ...`)
+      - pattern: $DB.query(`UPDATE ... ${$VAR} ...`)
+      - pattern: $DB.query(`DELETE ... ${$VAR} ...`)
+      - pattern: $DB.execute(`... ${$VAR} ...`)
+
+  # ============================================================
+  # CATEGORY: SECRET EXPOSURE
+  # rule_id prefix: SECRET_ (merges with SecretDetector signals)
+  # ============================================================
+
+  - id: python-hardcoded-password-assign
+    languages: [python]
+    severity: ERROR
+    message: >
+      SECRET_HARDCODED: Password, secret, or API key assigned as a string literal.
+      Use environment variables or a secrets manager instead.
+    metadata:
+      cwe: CWE-798
+      owasp: A07:2021
+      rule_id: SECRET_HARDCODED
+    pattern-either:
+      - pattern: password = "..."
+      - pattern: PASSWORD = "..."
+      - pattern: api_key = "..."
+      - pattern: API_KEY = "..."
+      - pattern: secret = "..."
+      - pattern: SECRET = "..."
+      - pattern: token = "..."
+      - pattern: TOKEN = "..."
+      - pattern: private_key = "..."
+
+  - id: js-hardcoded-secret-assign
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      SECRET_HARDCODED: Secret or credential assigned as a string literal.
+      Use environment variables or a secrets manager instead.
+    metadata:
+      cwe: CWE-798
+      owasp: A07:2021
+      rule_id: SECRET_HARDCODED
+    pattern-either:
+      - pattern: const password = "..."
+      - pattern: const apiKey = "..."
+      - pattern: const api_key = "..."
+      - pattern: const secret = "..."
+      - pattern: const token = "..."
+      - pattern: const privateKey = "..."
+      - pattern: let password = "..."
+      - pattern: let apiKey = "..."
+      - pattern: var password = "..."
+
+  - id: python-aws-key-literal
+    languages: [python]
+    severity: ERROR
+    message: >
+      SECRET_AWS: AWS access key ID literal detected (AKIA...).
+      Rotate immediately and store in AWS Secrets Manager or environment variables.
+    metadata:
+      cwe: CWE-798
+      owasp: A07:2021
+      rule_id: SECRET_AWS
+    pattern: $VAR = "AKIA..."
+
+  # ============================================================
+  # CATEGORY: PATH TRAVERSAL
+  # rule_id prefix: PATH_TRAVERSAL
+  # ============================================================
+
+  - id: python-path-traversal-open
+    languages: [python]
+    severity: ERROR
+    message: >
+      PATH_TRAVERSAL: User-controlled value used in open() without path
+      sanitisation. An attacker can use ../ sequences to read arbitrary files.
+      Use pathlib.Path.resolve() and verify the result stays within the
+      intended base directory.
+    metadata:
+      cwe: CWE-22
+      owasp: A01:2021
+      rule_id: PATH_TRAVERSAL
+    pattern-either:
+      - pattern: open(request.$ATTR, ...)
+      - pattern: |
+          $PATH = request.$ATTR
+          ...
+          open($PATH, ...)
+
+  - id: js-path-traversal-fs
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      PATH_TRAVERSAL: User-controlled value used in fs.readFile / fs.readFileSync
+      without path sanitisation. Use path.resolve() and verify confinement.
+    metadata:
+      cwe: CWE-22
+      owasp: A01:2021
+      rule_id: PATH_TRAVERSAL
+    pattern-either:
+      - pattern: fs.readFile(req.$ATTR, ...)
+      - pattern: fs.readFileSync(req.$ATTR, ...)
+      - pattern: fs.readFile(`...${req.$ATTR}...`, ...)
+      - pattern: fs.readFileSync(`...${req.$ATTR}...`, ...)
+
+  # ============================================================
+  # CATEGORY: SSRF
+  # rule_id prefix: SSRF
+  # ============================================================
+
+  - id: python-ssrf-requests
+    languages: [python]
+    severity: ERROR
+    message: >
+      SSRF: URL passed to requests.get/post is derived from user or env input
+      without validation. An attacker can redirect requests to internal services
+      (metadata endpoints, databases, cloud APIs).
+    metadata:
+      cwe: CWE-918
+      owasp: A10:2021
+      rule_id: SSRF
+    pattern-either:
+      - pattern: requests.get(request.$ATTR, ...)
+      - pattern: requests.post(request.$ATTR, ...)
+      - pattern: |
+          $URL = os.getenv(...)
+          ...
+          requests.get($URL, ...)
+      - pattern: |
+          $URL = os.getenv(...)
+          ...
+          requests.post($URL, ...)
+
+  - id: js-ssrf-fetch
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      SSRF: URL passed to fetch() or axios is derived from a request parameter
+      without allowlist validation. Validate against an explicit allowlist of
+      permitted domains before making outbound requests.
+    metadata:
+      cwe: CWE-918
+      owasp: A10:2021
+      rule_id: SSRF
+    pattern-either:
+      - pattern: fetch(req.$ATTR)
+      - pattern: fetch(`...${req.$ATTR}...`)
+      - pattern: axios.get(req.$ATTR)
+      - pattern: axios.post(req.$ATTR)
+
+  # ============================================================
+  # CATEGORY: INSECURE DESERIALIZATION
+  # rule_id prefix: INSECURE_DESERIALIZATION
+  # ============================================================
+
+  - id: python-pickle-load
+    languages: [python]
+    severity: ERROR
+    message: >
+      INSECURE_DESERIALIZATION: pickle.load() / pickle.loads() deserialises
+      arbitrary Python objects. Never deserialise untrusted data with pickle —
+      use JSON or a schema-validated format instead.
+    metadata:
+      cwe: CWE-502
+      owasp: A08:2021
+      rule_id: INSECURE_DESERIALIZATION
+    pattern-either:
+      - pattern: pickle.load($FILE)
+      - pattern: pickle.loads($DATA)
+
+  - id: python-yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >
+      INSECURE_DESERIALIZATION: yaml.load() without Loader=yaml.SafeLoader can
+      execute arbitrary Python code embedded in the YAML. Use yaml.safe_load()
+      or explicitly pass Loader=yaml.SafeLoader.
+    metadata:
+      cwe: CWE-502
+      owasp: A08:2021
+      rule_id: INSECURE_DESERIALIZATION
+    patterns:
+      - pattern: yaml.load($DATA, ...)
+      - pattern-not: yaml.load($DATA, Loader=yaml.SafeLoader)
+      - pattern-not: yaml.load($DATA, Loader=yaml.CSafeLoader)
+
+  - id: js-eval-json-parse-bypass
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      INSECURE_DESERIALIZATION: eval() used to parse JSON instead of JSON.parse().
+      This allows arbitrary code execution if the input is attacker-controlled.
+    metadata:
+      cwe: CWE-502
+      owasp: A08:2021
+      rule_id: INSECURE_DESERIALIZATION
+    pattern: eval("(" + $DATA + ")")
+
+  # ============================================================
+  # CATEGORY: WEAK CRYPTOGRAPHY
+  # rule_id prefix: WEAK_CRYPTO (triggers existing chain rules)
+  # ============================================================
+
+  - id: python-weak-hash-md5-sha1
+    languages: [python]
+    severity: WARNING
+    message: >
+      WEAK_CRYPTO: MD5 or SHA-1 is cryptographically broken and must not be used
+      for security-sensitive operations (password hashing, integrity verification,
+      digital signatures). Use SHA-256 or SHA-3 instead.
+    metadata:
+      cwe: CWE-327
+      owasp: A02:2021
+      rule_id: WEAK_CRYPTO
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+
+  - id: js-weak-hash-crypto
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      WEAK_CRYPTO: MD5 or SHA-1 used via Node.js crypto module.
+      These algorithms are broken for security use cases. Use SHA-256 or better.
+    metadata:
+      cwe: CWE-327
+      owasp: A02:2021
+      rule_id: WEAK_CRYPTO
+    pattern-either:
+      - pattern: crypto.createHash('md5')
+      - pattern: crypto.createHash('sha1')
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+
+  - id: python-random-not-crypto
+    languages: [python]
+    severity: WARNING
+    message: >
+      WEAK_CRYPTO: random module used in a security-sensitive context (token,
+      password, key, secret). random is not cryptographically secure.
+      Use secrets.token_hex() or secrets.token_bytes() instead.
+    metadata:
+      cwe: CWE-338
+      owasp: A02:2021
+      rule_id: WEAK_CRYPTO
+    pattern-either:
+      - pattern: random.choice($X)
+      - pattern: random.randint($A, $B)
+      - pattern: random.random()
+
+  # ============================================================
+  # CATEGORY: INSECURE DIRECT OBJECT REFERENCE / AUTH
+  # rule_id prefix: AUTH_BYPASS
+  # ============================================================
+
+  - id: python-jwt-none-algorithm
+    languages: [python]
+    severity: ERROR
+    message: >
+      AUTH_BYPASS: JWT decoded with algorithms=["none"] or without algorithm
+      verification. An attacker can forge tokens by setting alg=none.
+      Always specify an explicit trusted algorithm list.
+    metadata:
+      cwe: CWE-347
+      owasp: A02:2021
+      rule_id: AUTH_BYPASS
+    pattern-either:
+      - pattern: jwt.decode($TOKEN, $SECRET, algorithms=["none"])
+      - pattern: 'jwt.decode($TOKEN, options={"verify_signature": False})'
+
+  - id: python-flask-debug-true
+    languages: [python]
+    severity: ERROR
+    message: >
+      AUTH_BYPASS: Flask app running with debug=True exposes an interactive
+      debugger on unhandled exceptions, allowing arbitrary code execution.
+      Never enable debug mode in production.
+    metadata:
+      cwe: CWE-94
+      owasp: A05:2021
+      rule_id: AUTH_BYPASS
+    pattern-either:
+      - pattern: app.run(debug=True, ...)
+      - pattern: app.run(..., debug=True)
+
+  - id: js-express-no-auth-middleware
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      AUTH_BYPASS: Sensitive Express route defined without an authentication
+      middleware. Verify that this route is intentionally public.
+    metadata:
+      cwe: CWE-306
+      owasp: A01:2021
+      rule_id: AUTH_BYPASS
+    pattern-either:
+      - pattern: app.delete($ROUTE, $HANDLER)
+      - pattern: app.put($ROUTE, $HANDLER)
+
+  # ============================================================
+  # CATEGORY: XSS
+  # rule_id prefix: XSS
+  # ============================================================
+
+  - id: python-jinja2-autoescape-off
+    languages: [python]
+    severity: ERROR
+    message: >
+      XSS: Jinja2 Environment created with autoescape=False. This disables
+      HTML escaping and allows XSS if any template variable contains
+      user-controlled data. Set autoescape=True or use select_autoescape().
+    metadata:
+      cwe: CWE-79
+      owasp: A03:2021
+      rule_id: XSS
+    pattern: jinja2.Environment(..., autoescape=False, ...)
+
+  - id: python-flask-render-string
+    languages: [python]
+    severity: ERROR
+    message: >
+      XSS: render_template_string() with a user-controlled argument allows
+      Server-Side Template Injection (SSTI) in addition to XSS.
+      Use render_template() with a fixed template file instead.
+    metadata:
+      cwe: CWE-79
+      owasp: A03:2021
+      rule_id: XSS
+    pattern-either:
+      - pattern: render_template_string(request.$ATTR)
+      - pattern: |
+          $TMPL = request.$ATTR
+          ...
+          render_template_string($TMPL)
+
+  - id: js-innerhtml-user-input
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      XSS: innerHTML assigned from a variable. If the value originates from
+      user input or an API response, this is a direct XSS vector.
+      Use textContent for plain text or DOMPurify.sanitize() before innerHTML.
+    metadata:
+      cwe: CWE-79
+      owasp: A03:2021
+      rule_id: XSS
+    pattern: $EL.innerHTML = $VAR
+
+  # ============================================================
+  # CATEGORY: OPEN REDIRECT
+  # rule_id prefix: OPEN_REDIRECT
+  # ============================================================
+
+  - id: python-flask-open-redirect
+    languages: [python]
+    severity: WARNING
+    message: >
+      OPEN_REDIRECT: redirect() called with a URL derived from request parameters
+      without validation. An attacker can craft a link that redirects victims to
+      a malicious site. Validate against an allowlist of permitted URLs.
+    metadata:
+      cwe: CWE-601
+      owasp: A01:2021
+      rule_id: OPEN_REDIRECT
+    pattern-either:
+      - pattern: redirect(request.$ATTR)
+      - pattern: |
+          $URL = request.$ATTR
+          ...
+          redirect($URL)
+
+  - id: js-express-open-redirect
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      OPEN_REDIRECT: res.redirect() called with a URL from request parameters.
+      Validate the target URL against an allowlist before redirecting.
+    metadata:
+      cwe: CWE-601
+      owasp: A01:2021
+      rule_id: OPEN_REDIRECT
+    pattern-either:
+      - pattern: res.redirect(req.$ATTR.$KEY)
+      - pattern: res.redirect(req.query.$KEY)
+      - pattern: res.redirect(req.body.$KEY)

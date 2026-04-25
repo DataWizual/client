@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: auditor_db
+    # SECURITY FIX: Credentials managed via .env to avoid hardcoding in source control
+    environment:
+      POSTGRES_USER: ${DB_USER:-auditor}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-auditor_pro}
+    
+    # NETWORK HARDENING: Restricted access to localhost only
+    # Ensures database is reachable only from the host or other containers in this bridge
+    ports:
+      - "127.0.0.1:5432:5432"
+    
+    # RESOURCE PROTECTION: Prevents host-level DoS via resource exhaustion
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 128M
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    
+    # HEALTH MONITORING: Self-healing capability
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    # CONTAINER HARDENING
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
+    driver: local
